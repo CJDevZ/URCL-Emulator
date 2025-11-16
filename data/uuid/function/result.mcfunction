@@ -1,1 +1,1 @@
-$data modify storage uuid:out plain set value "$(value)$(1)-$(2)-$(3)-$(4)-$(5)$(6)$(7)"
+$data modify storage uuid:out plain set value "$(0)$(1)-$(2)-$(3)-$(4)-$(5)$(6)$(7)"
