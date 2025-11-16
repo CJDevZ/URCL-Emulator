@@ -1,0 +1,1 @@
+$return run data get storage urcl:runtime workspace.memory[$(mem_val)]

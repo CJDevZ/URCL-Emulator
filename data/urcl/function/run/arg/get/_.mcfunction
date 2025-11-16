@@ -1,0 +1,1 @@
+$return run function urcl:run/arg/get/$(mem_type) with storage urcl:temp

@@ -1,0 +1,3 @@
+execute unless items entity @s weapon.mainhand writable_book[custom_data~{code_book:1b},writable_book_content~{pages:{size:{min:1}}}] run return run title @s actionbar {"text":"Select a Code Book","color":"red"}
+$data modify storage urcl:library books[{author:"$(author)",name:"$(name)"}].pages set from entity @s SelectedItem.components."minecraft:writable_book_content".pages
+execute store result storage urcl:temp idx int 1 store result score #10 urcl.math store result score #11 urcl.math if data storage urcl:library books[]

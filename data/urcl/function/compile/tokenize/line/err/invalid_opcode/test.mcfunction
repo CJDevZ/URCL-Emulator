@@ -1,0 +1,1 @@
+execute unless score ?success_op urcl.temp matches 1 run data modify storage urcl:temp err append value {error:"opcode",message:"Invalid OP Code"}

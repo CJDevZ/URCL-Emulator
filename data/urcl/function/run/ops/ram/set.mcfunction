@@ -1,0 +1,1 @@
+$data modify storage urcl:runtime workspace.memory[$(pointer)] set value $(value)

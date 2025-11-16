@@ -1,0 +1,1 @@
+$execute store result storage urcl:runtime workspace.memory[$(mem_val)] int 1 run scoreboard players get val= urcl.runtime

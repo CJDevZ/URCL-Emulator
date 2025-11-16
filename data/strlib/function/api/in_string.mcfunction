@@ -1,0 +1,1 @@
+$data modify storage strlib:in string set value "$(string)"

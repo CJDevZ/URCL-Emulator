@@ -1,0 +1,1 @@
+scoreboard players reset * urcl.runtime.alive

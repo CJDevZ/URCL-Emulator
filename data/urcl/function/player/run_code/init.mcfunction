@@ -1,0 +1,2 @@
+data modify storage urcl:runtime workspace.memory prepend from entity @s SelectedItem.components."minecraft:custom_data".compiled[][]
+execute store result score @s urcl.runtime.malloc if data entity @s SelectedItem.components."minecraft:custom_data".compiled[][]

@@ -1,0 +1,1 @@
+$data modify storage uuid:temp value set from storage uuid:rom hex[$(value)]

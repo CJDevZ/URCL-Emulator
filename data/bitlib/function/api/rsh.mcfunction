@@ -1,0 +1,1 @@
+return run scoreboard players operation >A bitlib /= 2 __int__

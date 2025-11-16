@@ -1,0 +1,1 @@
+$data modify storage urcl:temp ascii set from storage uuid:rom hex[$(ascii)]

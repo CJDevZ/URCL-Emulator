@@ -1,0 +1,1 @@
+$data remove storage urcl:library books[$(index)]

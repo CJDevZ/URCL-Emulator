@@ -1,0 +1,8 @@
+{
+    "values": [
+        "uuid:load",
+        "strlib:priv/load",
+		"bitlib:priv/load",
+        "urcl:load"
+    ]
+}
