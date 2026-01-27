@@ -1,6 +1,7 @@
 data modify storage urcl:temp ascii set value 0
-$execute store success score success? urcl.temp run data modify storage urcl:temp ascii set from storage urcl:runtime workspace.memory[$(pointer)]
-execute unless score success? urcl.temp matches 1 run return 1
+$data modify storage urcl:temp ascii set from storage urcl:runtime workspace.memory[$(pointer)]
+execute if data storage urcl:temp {ascii:0} run return 1
+
 execute store result score ascii urcl.temp store result score ascii1 urcl.temp run data get storage urcl:temp ascii
 # Convert to Ascii
 execute store result storage urcl:temp ascii int 1 run scoreboard players operation ascii urcl.temp %= 65536 __int__
