@@ -43,9 +43,7 @@ scoreboard objectives add urcl.runtime.malloc dummy
 
 scoreboard objectives add urcl.runtime.port.x dummy
 scoreboard objectives add urcl.runtime.port.y dummy
-scoreboard objectives add urcl.runtime.port.r dummy
-scoreboard objectives add urcl.runtime.port.g dummy
-scoreboard objectives add urcl.runtime.port.b dummy
+scoreboard objectives add urcl.runtime.port.rgb dummy
 
 # Math
 scoreboard objectives add urcl.math dummy
