@@ -1,0 +1,1 @@
+$function urcl:run/ops/$(op_code)
