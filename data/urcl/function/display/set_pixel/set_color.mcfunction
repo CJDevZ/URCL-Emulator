@@ -1,0 +1,1 @@
+$execute store result storage urcl:temp frame_buffer[$(PIXEL)] int 1 run scoreboard players get @s urcl.runtime.port.rgb

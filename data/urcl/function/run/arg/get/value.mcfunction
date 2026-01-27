@@ -1,1 +1,0 @@
-$return $(mem_val)
