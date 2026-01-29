@@ -3,4 +3,4 @@ scoreboard players set #xy urcl.temp 2304
 data modify storage urcl:temp frame_buffer set value [0]
 execute store result score #pixels_overshoot urcl.temp store result score #pixels urcl.temp if data entity b4c2ef2d-f22f-40b1-9b81-452342af735c item.components.minecraft:custom_model_data.colors[]
 function urcl:display/spawn/loop
-data modify entity b4c2ef2d-f22f-40b1-9b81-452342af735c item.components."minecraft:custom_model_data".colors set from storage urcl:temp frame_buffer
+data modify entity b4c2ef2d-f22f-40b1-9b81-452342af735c item.components.minecraft:custom_model_data.colors set from storage urcl:temp frame_buffer
