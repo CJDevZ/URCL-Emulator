@@ -3,7 +3,7 @@ advancement revoke @s only urcl:run_screen
 execute unless data entity @s SelectedItem.components.minecraft:custom_data.compiled run return run title @s actionbar {text:"Select a Compiled Code Book in Mainhand",color:"red"}
 
 # Reset Data
-function urcl:player/reset_data/_
+function urcl:player/reset_data
 data modify storage urcl:runtime workspace.memory prepend from entity @s SelectedItem.components."minecraft:custom_data".compiled[][]
 scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.curLine 0
 scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.alive 1
