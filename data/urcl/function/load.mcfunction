@@ -1,4 +1,4 @@
-gamerule max_command_sequence_length 1500000
+function urcl:gamerules
 kill @e[type=!player,tag=urcl.entity]
 
 # Get Book
