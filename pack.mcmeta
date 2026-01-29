@@ -1,6 +1,21 @@
 {
-    "pack": {
-        "pack_format": 81,
-        "description": ""
-    }
+  "pack": {
+    "description": "",
+    "pack_format": 81,
+    "supported_formats": [
+      81,
+      999
+    ],
+    "min_format": 81,
+    "max_format": 999
+  },
+  "overlays": {
+    "entries": [
+      {
+        "directory": "1_21_11",
+        "min_format": 91,
+        "max_format": 999
+      }
+    ]
+  }
 }
