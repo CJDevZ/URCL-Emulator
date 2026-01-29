@@ -1,1 +1,0 @@
-$data modify storage urcl:temp frame_buffer[$(PIXEL)].color set value "#$(R)$(G)$(B)"
