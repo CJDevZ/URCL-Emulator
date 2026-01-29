@@ -1,4 +1,4 @@
-gamerule maxCommandChainLength 1500000
+function urcl:gamerules
 kill @e[type=!player,tag=urcl.entity]
 
 # Get Book
@@ -53,6 +53,8 @@ scoreboard players set 5 __int__ 5
 scoreboard players set 12 __int__ 12
 scoreboard players set 15 __int__ 15
 scoreboard players set 64 __int__ 64
+scoreboard players set 256 __int__ 256
+scoreboard players set 65536 __int__ 65536
 
 scoreboard objectives add urcl.powertwo dummy
 scoreboard players set 0 urcl.powertwo 1

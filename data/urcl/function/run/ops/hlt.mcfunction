@@ -1,2 +1,0 @@
-# HLT
-scoreboard players reset @s urcl.runtime.alive
