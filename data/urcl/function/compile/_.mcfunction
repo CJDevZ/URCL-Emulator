@@ -9,8 +9,6 @@ scoreboard players set ?success_compile urcl.temp 1
 data modify storage urcl:temp defines set value []
 data modify storage urcl:temp pages set from entity @s equipment.offhand.components."minecraft:writable_book_content".pages
 
-execute store result score #page urcl.temp if data storage urcl:temp pages[]
-
 scoreboard players set &page urcl.temp 0
 scoreboard players set &instruction urcl.temp 0
 data modify storage urcl:temp precompile set value []
