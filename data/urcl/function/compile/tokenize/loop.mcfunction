@@ -1,4 +1,4 @@
-execute unless score &page urcl.temp < #page urcl.temp run return 1
+execute unless data storage urcl:temp copy_pages[] run return 1
 
 # Splitting Lines
 data modify storage strlib:in string set from storage urcl:temp copy_pages[0].raw

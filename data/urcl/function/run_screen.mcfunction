@@ -5,7 +5,7 @@ execute unless data entity @s SelectedItem.components.minecraft:custom_data.comp
 # Reset Data
 function urcl:player/reset_data
 data modify storage urcl:runtime workspace.memory prepend from entity @s SelectedItem.components."minecraft:custom_data".compiled[][]
-scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.curLine 0
+scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.curLine -1
 scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.alive 1
 <<<<<<< HEAD
 execute store result score b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.malloc store result storage urcl:runtime workspace.malloc[0].next int 1 if data entity @s SelectedItem.components."minecraft:custom_data".compiled[][]
