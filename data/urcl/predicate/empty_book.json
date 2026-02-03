@@ -1,0 +1,20 @@
+{
+  "condition": "minecraft:entity_properties",
+  "entity": "this",
+  "predicate": {
+    "slots": {
+      "contents": {
+        "predicates": {
+          "minecraft:writable_book_content": {
+            "pages": {
+              "size": 0
+            }
+          },
+          "minecraft:custom_data": {
+            "code_book": true
+          }
+        }
+      }
+    }
+  }
+}

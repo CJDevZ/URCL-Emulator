@@ -1,6 +1,6 @@
 gamemode adventure @a[predicate=urcl:sneak,tag=urcl.player]
 tag @a[predicate=urcl:sneak,tag=urcl.player] remove urcl.player
-execute as @e[type=item] if items entity @s container.0 writable_book[custom_data~{code_book:1b}] unless data entity @s Item.components."minecraft:writable_book_content" run kill @s
+kill @e[type=item,predicate=urcl:empty_book]
 
 scoreboard players remove @a[scores={urcl.runtime.delay=1..}] urcl.runtime.delay 1
 execute as b4c2ef2d-f22f-40b1-9b81-452342af735c if score @s urcl.runtime.delay matches 1.. run scoreboard players remove @s urcl.runtime.delay 1
