@@ -1,4 +1,5 @@
 # PSH
+data modify storage urcl:runtime workspace.stack append value 0
+
 function urcl:run/arg/load_addr/_
-execute store result storage urcl:temp value int 1 run function urcl:run/arg/get/_ with storage urcl:temp
-function urcl:run/ops/stack/push
+execute store result storage urcl:runtime workspace.stack[-1] int 1 run function urcl:run/arg/get/_ with storage urcl:temp
