@@ -142,7 +142,9 @@ class ParameterToken(Token):
         int_value: int = int(self.value, 0) if self.value[0].isdigit() else int(self.value[1:])
         if not arg_type.value & type_value:
             raise ValueError(f"Op requires '{arg_type.name}', found '{type_value.name}'")
-        return [type_value - 1, int_value] if arg_type == ParameterType.ANY else [int_value]
+        elif abs(int_value) > 0xffffffff:
+            raise ValueError(f"Immediate Value too Large")
+        return [type_value - 1, int_value & 0xffffffff] if arg_type == ParameterType.ANY else [int_value & 0xffffffff]
 
 
 @dataclass_json
@@ -304,13 +306,22 @@ def compile():
             except ValueError:
                 has_error = True
                 errors[token.line] = Error(token.line, f"Invalid parameter '{token.value}'", "error")
+            except StopIteration:
+                has_error = True
+                errors[token.line] = Error(token.line, f"Invalid parameter count", "error")
 
     auth_integer = random.randint(1, 2147483647)
     compiled.append(op_codes["HLT"].id)
-    database.setex(auth_integer.to_bytes(4, signed=True), 300, array.array('i', compiled).tobytes())
+    program_bytes: bytes | None = None
+    try:
+        program_bytes = array.array('i', compiled).tobytes()
+    except OverflowError:
+        has_error = True
+        errors[0] = Error(line_number, f"Program using more than 32 bits for some words", type="error")
 
     if has_error:
         return list(errors.values()), 400
+    database.setex(auth_integer.to_bytes(4, signed=True), 300, program_bytes)
     return f"ok {auth_integer}", 200
 
 if __name__ == '__main__':
