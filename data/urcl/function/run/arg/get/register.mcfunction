@@ -1,1 +1,1 @@
-$return run data get storage urcl:runtime workspace.register[$(mem_val)]
+$return run scoreboard players get @s urcl.runtime.register.$(mem_val)
