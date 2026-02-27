@@ -7,13 +7,21 @@
     --comment: #6a9955;
 }
 
-body { background: #121212; color: white; font-family: sans-serif; width: 100%; height: 100%; }
+body { background: #121212; color: white; font-family: sans-serif; width: 100%; height: 100%; margin: 0; }
+
+.controls {
+    margin: 10px 0;
+}
+
+.main-layout {
+    margin: 10px;
+}
 
 .editor-container {
     display: flex;
     width: 90%;
     height: 500px;
-    margin: 20px auto;
+    margin: 10px auto;
     background: var(--bg-color);
     border: 1px solid #333;
     overflow: hidden;

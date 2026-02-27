@@ -1,1 +1,1 @@
-$execute store result storage urcl:runtime workspace.register[$(mem_val)] int 1 run scoreboard players get val= urcl.runtime
+$scoreboard players operation @s urcl.runtime.register.$(out_val) = out= urcl.runtime
