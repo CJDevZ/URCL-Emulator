@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>URCL Compiler</title>
+		<link rel="stylesheet" href="style.css">
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js" charset="utf-8"></script>
+	</head>
+	<body>
+		<div class="main-layout">
+			<div class="editor-container" id="editor">; some comment
+# 'nother comment
+</div>
+
+			<div class="console-container">
+				<div class="console-header">Terminal / Output</div>
+				<div id="console-output" class="console-body">Ready...</div>
+			</div>
+		</div>
+		<div class="controls">
+			<button onclick="uploadCode()">Compile & Upload</button>
+			<button onclick="saveCode()">Save</button>
+			<input type="file" id="fileLoader" style="display: none;" accept=".urcl,.txt">
+			<button onclick="loadCode()">Load From File</button>
+		</div>
+		<script src="script.js"></script>
+	</body>
+</html>
