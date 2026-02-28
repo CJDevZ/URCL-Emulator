@@ -231,8 +231,9 @@ def compile():
                     instruction += 1
                     arguments = op_codes[e.upper()].arguments
                     if len(arguments) > 0:
-                        if arguments == ParameterType.DWORD:
-                            instruction += sum(1 for s in split if s != '')
+                        if arguments[0] == ParameterType.DWORD:
+                            instruction -= 1
+                            instruction += sum(1 for a in line.split(" ") if a != '') - 1
                         else:
                             instruction += sum((arg == ParameterType.ANY) + 1 for arg in arguments)
 
@@ -265,7 +266,7 @@ def compile():
                 if first:
                     operands.append(OpToken(line_number, e))
                 else:
-                    operands.append(ParameterToken(line_number, define.value if define else e))
+                    operands.append(ParameterToken(line_number, define.value if define is not None else e))
                 instruction += 1
             first = False
         if operands:
