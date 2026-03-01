@@ -315,7 +315,7 @@ def compile():
     compiled.append(op_codes["HLT"].id)
     program_bytes: bytes | None = None
     try:
-        program_bytes = array.array('i', compiled).tobytes()
+        program_bytes = array.array('I', compiled).tobytes()
     except OverflowError:
         has_error = True
         errors[0] = Error(line_number, f"Program using more than 32 bits for some words", type="error")
