@@ -7,15 +7,10 @@ function urcl:player/reset_data
 data modify storage urcl:runtime workspace.memory prepend from entity @s SelectedItem.components."minecraft:custom_data".compiled[][]
 scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.curLine -1
 scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.alive 1
-<<<<<<< HEAD
-execute store result score b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.malloc store result storage urcl:runtime workspace.malloc[0].next int 1 if data entity @s SelectedItem.components."minecraft:custom_data".compiled[][]
-=======
 execute store result score b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.malloc store result storage urcl:runtime workspace.malloc[0].next int 1 if data entity @s SelectedItem.components.minecraft:custom_data.compiled[][]
->>>>>>> 0b9b55b165dc3b3bfe5892223dea2e1b0b45533b
 
 scoreboard players reset b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.delay
-scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.port.x 0
-scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.port.y 0
+scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.port.xy 0
 scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.port.rgb 0
 
 scoreboard players reset b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.delay

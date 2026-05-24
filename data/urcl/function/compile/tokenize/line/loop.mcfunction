@@ -30,19 +30,23 @@ execute store result score #op urcl.temp if data storage strlib:out array[]
 
 ###
 execute store success score ?success_op urcl.temp store result score #requiredop urcl.temp run function urcl:compile/tokenize/line/check_op with storage urcl:temp
+execute store result score $op_code urcl.temp run data get storage urcl:temp compiled[-1][0]
+scoreboard players set $op urcl.temp 0
 # Add Args
 function urcl:compile/tokenize/line/add_arg
+scoreboard players operation $op urcl.temp *= 256 __int__
+execute store result storage urcl:temp compiled[-1][0] int 1 run scoreboard players operation $op urcl.temp += $op_code urcl.temp
 
 # Check Errors
 execute if function urcl:compile/tokenize/line/err/_ run scoreboard players set ?success_compile urcl.temp 0
 
 # Fix Unnecessary Type Data
-data modify storage urcl:temp copy_instruction set from storage urcl:temp compiled[-1]
-data modify storage urcl:temp compiled[-1] set value [I;]
-data modify storage urcl:temp compiled[-1] append from storage urcl:temp copy_instruction[0]
-data remove storage urcl:temp copy_instruction[0]
-function urcl:compile/tokenize/line/get_op_args with storage urcl:temp
-function urcl:compile/tokenize/line/loop_fix
+#data modify storage urcl:temp copy_instruction set from storage urcl:temp compiled[-1]
+#data modify storage urcl:temp compiled[-1] set value [I;]
+#data modify storage urcl:temp compiled[-1] append from storage urcl:temp copy_instruction[0]
+#data remove storage urcl:temp copy_instruction[0]
+#function urcl:compile/tokenize/line/get_op_args with storage urcl:temp
+#function urcl:compile/tokenize/line/loop_fix
 
 #$data modify storage urcl:temp char set string storage urcl:temp raw $(char1) $(char2)
 #execute store success score =success urcl.temp run function urcl:compile/tokenize/page/allowed_char with storage urcl:temp

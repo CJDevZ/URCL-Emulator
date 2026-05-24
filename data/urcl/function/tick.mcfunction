@@ -15,8 +15,4 @@ execute if entity @a[tag=urcl.player,predicate=urcl:sprint] run scoreboard playe
 
 
 execute as b4c2ef2d-f22f-40b1-9b81-452342af735c if score @s urcl.runtime.alive matches 1.. unless score @s urcl.runtime.delay matches 1.. run function urcl:run/tick/_
-<<<<<<< HEAD
 data modify entity b4c2ef2d-f22f-40b1-9b81-452342af735c item.components.minecraft:custom_model_data.colors set from storage urcl:temp frame_buffer
-=======
-data modify entity b4c2ef2d-f22f-40b1-9b81-452342af735c item.components.minecraft:custom_model_data.colors set from storage urcl:temp frame_buffer
->>>>>>> 0b9b55b165dc3b3bfe5892223dea2e1b0b45533b
