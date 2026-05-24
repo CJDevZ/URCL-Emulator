@@ -1,4 +1,5 @@
 # LOD
+scoreboard players operation $op_code urcl.runtime *= 8388608 __int__
 execute store result storage urcl:temp out_val int 1 run function urcl:run/arg/load_addr/direct
 
 function urcl:run/arg/load_addr/_

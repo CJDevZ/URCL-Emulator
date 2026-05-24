@@ -41,8 +41,7 @@ scoreboard objectives add urcl.runtime.delay dummy
 scoreboard objectives add urcl.runtime.curLine dummy
 scoreboard objectives add urcl.runtime.malloc dummy
 
-scoreboard objectives add urcl.runtime.port.x dummy
-scoreboard objectives add urcl.runtime.port.y dummy
+scoreboard objectives add urcl.runtime.port.xy dummy
 scoreboard objectives add urcl.runtime.port.rgb dummy
 
 # Register

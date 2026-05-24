@@ -1,5 +1,7 @@
 execute unless data storage strlib:out array[] run return 1
 
+scoreboard players operation $op urcl.temp += $op urcl.temp
+
 data modify storage urcl:temp arg set from storage strlib:out array[0]
 data modify storage urcl:temp arg_offset set string storage urcl:temp arg 1
 data modify storage urcl:temp arg_type set string storage urcl:temp arg 0 1

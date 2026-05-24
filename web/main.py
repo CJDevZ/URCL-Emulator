@@ -23,9 +23,9 @@ limiter = Limiter(
     default_limits=["6 per minute"],
 )
 
-@app.route('/emulator/urcl')
+@app.get('/emulator/urcl')
 def hello_world():
-    return send_file('http/index.html', mimetype='text/html'), 200
+    return send_file('http/index.html')
 
 
 @dataclass(slots=True,frozen=True)
@@ -137,14 +137,20 @@ class OpToken(Token):
 class ParameterToken(Token):
     value: str
 
-    def get_binary(self, arg_type: ParameterType) -> list[int]:
-        type_value: ParameterType = ParameterType(self.value[0].isalpha() + 1)
-        int_value: int = int(self.value, 0) if self.value[0].isdigit() else int(self.value[1:])
+    def get_binary(self, arg_type: ParameterType) -> tuple[ParameterType, int]:
+        type_value: ParameterType = ParameterType((self.value[0] in ('r','R')) + 1)
+        int_value: int
+        if self.value[0].isdigit():
+            int_value = int(self.value[0])
+        elif self.value[0] == '\'' and self.value[-1] == '\'':
+            int_value = ord(self.value[1:-1].encode().decode("unicode_escape"))
+        else:
+            int_value = int(self.value[1:])
         if not arg_type.value & type_value:
             raise ValueError(f"Op requires '{arg_type.name}', found '{type_value.name}'")
         elif abs(int_value) > 0xffffffff:
             raise ValueError(f"Immediate Value too Large")
-        return [type_value - 1, int_value & 0xffffffff] if arg_type == ParameterType.ANY else [int_value & 0xffffffff]
+        return type_value, int_value & 0xffffffff
 
 
 @dataclass_json
@@ -159,7 +165,7 @@ class GetResponse:
     compiled: list[int]
 
 
-@app.route('/emulator/urcl/get', methods=["POST"])
+@app.post('/emulator/urcl/get')
 def emulator_get_urcl():
     requests = request.get_json()
     if not isinstance(requests, list):
@@ -192,7 +198,7 @@ class Error:
     type: str
 
 
-@app.route('/emulator/urcl/compile', methods=['POST'])
+@app.post('/emulator/urcl/compile')
 @limiter.limit("5 per minute")
 def compile():
     body: bytes = request.get_json()
@@ -235,7 +241,7 @@ def compile():
                             instruction -= 1
                             instruction += sum(1 for a in line.split(" ") if a != '') - 1
                         else:
-                            instruction += sum((arg == ParameterType.ANY) + 1 for arg in arguments)
+                            instruction += len(arguments)
 
                 except KeyError:
                     has_error = True
@@ -262,10 +268,10 @@ def compile():
             elif e.lower() == "@define":
                 break
             else:
-                define = defines.get(e)
                 if first:
                     operands.append(OpToken(line_number, e))
                 else:
+                    define = defines.get(e)
                     operands.append(ParameterToken(line_number, define.value if define is not None else e))
                 instruction += 1
             first = False
@@ -284,14 +290,17 @@ def compile():
             errors[line_number] = Error(line_number, f"Invalid op code '{operand.value}'", "error")
             continue
         if op_code_integer >= 0:
+            op_code_index = len(compiled)
             compiled.append(op_code_integer)
+        else:
+            op_code_index = -1
         args_list = op_codes[operand.value.upper()].arguments
         if len(args_list) == 0:
             continue
         if args_list[0] == ParameterType.DWORD:
             for token in token_list:
-                for value in token.get_binary(ParameterType.IMMEDIATE):
-                    compiled.append(value)
+                _, value = token.get_binary(ParameterType.IMMEDIATE)
+                compiled.append(value)
             continue
 
         if len(args_list) != len(token_list):
@@ -299,17 +308,22 @@ def compile():
             errors[operand.line] = Error(operand.line, "Invalid parameter count", "error")
 
         args = iter(args_list)
+        arg_mask = 0
         for token in token_list:
             token: ParameterToken
             try:
-                for value in token.get_binary(next(args)):
-                    compiled.append(value)
+                param_type, value = token.get_binary(next(args))
+                arg_mask = (arg_mask << 1) | param_type -1
+                compiled.append(value)
             except ValueError:
                 has_error = True
                 errors[token.line] = Error(token.line, f"Invalid parameter '{token.value}'", "error")
             except StopIteration:
                 has_error = True
                 errors[token.line] = Error(token.line, f"Invalid parameter count", "error")
+        
+        if op_code_index >= 0:
+            compiled[op_code_index] |= arg_mask << 8
 
     auth_integer = random.randint(1, 2147483647)
     compiled.append(op_codes["HLT"].id)

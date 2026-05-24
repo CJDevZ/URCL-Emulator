@@ -1,0 +1,14 @@
+{
+  "condition": "minecraft:value_check",
+  "value": {
+    "type": "minecraft:score",
+    "target": {
+      "type": "minecraft:fixed",
+      "name": "$op_code"
+    },
+    "score": "urcl.runtime"
+  },
+  "range": {
+    "max": -1
+  }
+}
