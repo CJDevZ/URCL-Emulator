@@ -233,7 +233,6 @@ def compile():
 
     tree = parser.parse(body)
     program = Compiler().transform(tree)
-    print(program)
 
     defines: dict[str, ParameterToken] = {}
     instruction = 0
@@ -245,15 +244,12 @@ def compile():
             except KeyError:
                 errors[line] = Error(line, f"Invalid op code '{name}'", "error")
                 continue
-            print(line, name, args)
             instruction += len(args)
             if operator.id >= 0:
                 instruction += 1
         elif instruction_type == "label":
-            print(line, name)
             defines[name] = ParameterToken('number', instruction)
         elif instruction_type == "define":
-            print(line, name, args)
             defines[name] = ParameterToken(*args)
 
     compiled: list[int] = []
@@ -279,9 +275,7 @@ def compile():
             for arg in args:
                 arg_type, arg_value = arg
                 try:
-                    print(arg_type, arg_value)
                     if arg_type in ('define', 'label'):
-                        print(arg_value)
                         try:
                             param_type, value = defines[arg_value].get_binary(next(args_iter))
                         except KeyError:
@@ -310,8 +304,6 @@ def compile():
     except OverflowError:
         errors[0] = Error(0, f"Program using more than 32 bits for some words", type="error")
         return list(errors.values()), 400
-
-    print(compiled)
 
     database.setex(auth_integer.to_bytes(4, signed=True), 300, program_bytes)
     return f"ok {auth_integer}", 200
