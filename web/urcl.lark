@@ -1,0 +1,27 @@
+start: line*
+
+line: instruction NEWLINE
+        | label NEWLINE
+        | define NEWLINE
+        | NEWLINE
+
+label: dot_label
+define: "@define"i WORD param
+instruction: WORD param*
+
+param: NUMBER
+    | dot_label
+    | CHAR
+    | defined
+
+dot_label: "." WORD
+CHAR: /'(\\.|[^\\'])'/
+WORD: /[a-zA-Z_][a-zA-Z0-9_]*/
+NUMBER: /-?(0x[0-9a-fA-F_]+|0b[01_]+|[0-9_]+)/
+defined: WORD
+
+%import common.NEWLINE
+
+%ignore " "
+%ignore /#[^\r\n]*/
+%ignore /;[^\n\n]*/
