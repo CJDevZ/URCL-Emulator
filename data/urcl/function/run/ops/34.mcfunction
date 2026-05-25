@@ -1,6 +1,6 @@
 # CAL
 scoreboard players operation $op_code urcl.runtime *= 8388608 __int__
-function urcl:run/arg/load_addr/_
+execute store result storage urcl:temp mem_val int 1 run function urcl:run/arg/load_addr/direct
 # execute store result storage urcl:temp value int 1 run scoreboard players add @s urcl.runtime.curLine 1
 # function urcl:run/ops/stack/push
 data modify storage urcl:runtime workspace.stack append value 0

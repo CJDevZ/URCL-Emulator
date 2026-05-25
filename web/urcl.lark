@@ -24,4 +24,4 @@ defined: WORD
 
 %ignore " "
 %ignore /#[^\r\n]*/
-%ignore /;[^\n\n]*/
+%ignore /;[^\r\n]*/
