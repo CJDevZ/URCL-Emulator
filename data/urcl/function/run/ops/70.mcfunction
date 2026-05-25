@@ -2,7 +2,7 @@
 scoreboard players operation $op_code urcl.runtime *= 8388608 __int__
 execute store result score port= urcl.runtime run function urcl:run/arg/load_addr/direct
 
-function urcl:run/arg/load_addr/_
+execute store result storage urcl:temp mem_val int 1 run function urcl:run/arg/load_addr/direct
 execute store result storage urcl:temp value int 1 store result score value= urcl.runtime run function urcl:run/arg/get/_ with storage urcl:temp
 
 

@@ -1,15 +1,14 @@
 # BRL
 scoreboard players operation $op_code urcl.runtime *= 2097152 __int__
-function urcl:run/arg/load_addr/_
+execute store result storage urcl:temp out_val int 1 run function urcl:run/arg/load_addr/direct
 execute store success score out_type= urcl.runtime if predicate urcl:arg/register
-execute store result storage urcl:temp out_val int 1 run scoreboard players get val= urcl.runtime
 scoreboard players operation $op_code urcl.runtime += $op_code urcl.runtime
 
-function urcl:run/arg/load_addr/_
+execute store result storage urcl:temp mem_val int 1 run function urcl:run/arg/load_addr/direct
 execute store result score #1 urcl.math run function urcl:run/arg/get/_ with storage urcl:temp
 scoreboard players operation $op_code urcl.runtime += $op_code urcl.runtime
 
-function urcl:run/arg/load_addr/_
+execute store result storage urcl:temp mem_val int 1 run function urcl:run/arg/load_addr/direct
 execute store result score #2 urcl.math run function urcl:run/arg/get/_ with storage urcl:temp
 execute if score #1 urcl.math matches 0.. if score #2 urcl.math matches ..-1 run return fail
 execute if score #1 urcl.math matches ..-1 run scoreboard players add #1 urcl.math 2147483647
