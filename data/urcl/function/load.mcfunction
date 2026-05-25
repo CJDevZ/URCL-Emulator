@@ -1,32 +1,4 @@
 function urcl:gamerules
-kill @e[type=!player,tag=urcl.entity]
-
-# Get Book
-summon item_display -19.5 63.5625 -29.0 {Tags:["urcl.entity"],item:{id:"minecraft:book"},transformation:{left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f],scale:[0.25f,0.25f,0.25f],translation:[0f,0f,0f]}}
-summon interaction -19.5 63.4375 -29.0 {CustomName:{text:"Get Book",color:"yellow"},height:0.25,width:0.25,Tags:["urcl.book","urcl.entity"],response:1b}
-
-# Dupe Book
-summon item_display -19.5 63.25 -29.0 {Tags:["urcl.entity"],item:{id:"minecraft:writable_book"},transformation:{left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f],scale:[0.25f,0.25f,0.25f],translation:[0f,0f,0f]}}
-summon interaction -19.5 63.125 -29.0 {CustomName:{text:"Dupe Book",color:"yellow"},height:0.25,width:0.25,Tags:["urcl.dupe","urcl.entity"],response:1b}
-
-# Play
-summon item_display -19.1875 63.875 -29.0 {Tags:["urcl.entity"],item:{id:"minecraft:ender_eye"},transformation:{left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f],scale:[0.25f,0.25f,0.25f],translation:[0f,0f,0f]}}
-summon interaction -19.1875 63.75 -29.0 {CustomName:{text:"Play",color:"aqua"},height:0.25,width:0.25,Tags:["urcl.play","urcl.entity"],response:1b}
-
-# Run Screen Code
-summon item_display -19.1875 63.5625 -29.0 {Tags:["urcl.entity"],item:{id:"minecraft:enchanted_book"},transformation:{left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f],scale:[0.25f,0.25f,0.25f],translation:[0f,0f,0f]}}
-summon interaction -19.1875 63.4375 -29.0 {CustomName:{text:"Run Book",color:"aqua"},height:0.25,width:0.25,Tags:["urcl.run_screen","urcl.entity"],response:1b}
-
-# Stop Screen Code
-summon item_display -19.1875 63.25 -29.0 {Tags:["urcl.entity"],item:{id:"minecraft:barrier"},transformation:{left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f],scale:[0.25f,0.25f,0.25f],translation:[0f,0f,0f]}}
-summon interaction -19.1875 63.125 -29.0 {CustomName:{text:"Stop",color:"red"},height:0.25,width:0.25,Tags:["urcl.stop_screen","urcl.entity"],response:1b}
-
-# Compile Book near Screen
-summon item_display -19.1875 62.9375 -29.0 {Tags:["urcl.entity"],item:{id:"minecraft:knowledge_book"},transformation:{left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f],scale:[0.25f,0.25f,0.25f],translation:[0f,0f,0f]}}
-summon interaction -19.1875 62.8125 -29.0 {CustomName:{text:"Compile Book",color:"aqua"},height:0.25,width:0.25,Tags:["urcl.compile","urcl.entity"],response:1b}
-
-# Library
-summon text_display -13.4875 64.6875 -29.0 {Tags:["urcl.entity"],alignment:"left",background:0,default_background:1b,line_width:200,shadow:0b,text:'Library of Code Books:',transformation:{left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f],scale:[1f,1f,1f],translation:[0f,0f,0.001f]}}
 
 # Scoreboard
 
@@ -198,20 +170,6 @@ data modify storage urcl:rom ops set value [{id:0b,name:"ADD",args:[[1],[0,1],[0
 data modify storage urcl:rom arg_types set value {r:1b,R:1b,"$":1b,m:2b,M:2b,"#":2b}
 data modify storage urcl:rom hex set value ["00","01","02","03","04","05","06","07","08","09","0A","0B","0C","0D","0E","0F","10","11","12","13","14","15","16","17","18","19","1A","1B","1C","1D","1E","1F","20","21","22","23","24","25","26","27","28","29","2A","2B","2C","2D","2E","2F","30","31","32","33","34","35","36","37","38","39","3A","3B","3C","3D","3E","3F","40","41","42","43","44","45","46","47","48","49","4A","4B","4C","4D","4E","4F","50","51","52","53","54","55","56","57","58","59","5A","5B","5C","5D","5E","5F","60","61","62","63","64","65","66","67","68","69","6A","6B","6C","6D","6E","6F","70","71","72","73","74","75","76","77","78","79","7A","7B","7C","7D","7E","7F","80","81","82","83","84","85","86","87","88","89","8A","8B","8C","8D","8E","8F","90","91","92","93","94","95","96","97","98","99","9A","9B","9C","9D","9E","9F","A0","A1","A2","A3","A4","A5","A6","A7","A8","A9","AA","AB","AC","AD","AE","AF","B0","B1","B2","B3","B4","B5","B6","B7","B8","B9","BA","BB","BC","BD","BE","BF","C0","C1","C2","C3","C4","C5","C6","C7","C8","C9","CA","CB","CC","CD","CE","CF","D0","D1","D2","D3","D4","D5","D6","D7","D8","D9","DA","DB","DC","DD","1E","DF","E0","E1","E2","E3","E4","E5","E6","E7","E8","E9","EA","EB","EC","ED","EE","EF","F0","F1","F2","F3","F4","F5","F6","F7","F8","F9","FA","FB","FC","FD","FE","FF","F0","F1","F2","F3","F4","F5","F6","F7","F8","F9","FA","FB","FC","FD","FE","FF"]
 
-# Library Books
-function urcl:library/spawn_books/_
-
-# Screen, aka Executor
-kill b4c2ef2d-f22f-40b1-9b81-452342af735c
-function urcl:display/spawn/_
-# Logs
-kill 94cff2ce-2f43-4dc3-beb3-c0fddbe3609b
-summon minecraft:text_display -21.5 62.0 -29.95 {UUID:[I;-1798311218,792939971,-1095515907,-605855589], alignment: "left", background: 1073741824, default_background: 1b, line_width: 116, see_through: 0b, shadow: 0b, text: {extra: ["                              "], text: "", color: "gray"}, text_opacity: 255}
-
-# Camera
-kill 3830870b-dbc7-4c9f-8aaf-7357133edd6e
-summon minecraft:block_display -17.0 63.5 -26.875 {UUID:[I;942704395,-607695713,-1968213161,322887022], Rotation: [180f, 0f], block_state: {Name: "minecraft:air"}}
-
 # Clear workspace
 data remove storage urcl:runtime workspace
 
@@ -220,3 +178,5 @@ gamemode adventure @a[predicate=urcl:sneak,tag=urcl.player]
 tag @a[predicate=urcl:sneak,tag=urcl.player] remove urcl.player
 
 tellraw @a {color:"gold",text:"LOADED URCL EMULATOR!"}
+
+schedule function urcl:load_entities 1s

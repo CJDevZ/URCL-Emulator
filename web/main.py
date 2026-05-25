@@ -7,16 +7,20 @@ from dacite import from_dict
 from enum import IntFlag
 
 from dataclasses_json import dataclass_json
+from lark import Lark, Transformer, v_args
 from flask import Flask, send_file, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import redis
 from uuid import UUID
 
+from lark.tree import Meta
 
 database = redis.Redis(host='localhost', port=6379, db=0)
 
 
+with open("urcl.lark", "r") as f:
+    parser = Lark(f.read(), parser="lalr", propagate_positions=True)
 app = Flask(__name__)
 limiter = Limiter(
     key_func=get_remote_address,
@@ -28,19 +32,11 @@ def hello_world():
     return send_file('http/index.html')
 
 
-@dataclass(slots=True,frozen=True)
-class Token:
-    line: int
-
-
 class ParameterType(IntFlag):
     IMMEDIATE = 1
     REGISTER = 2
     ANY = IMMEDIATE | REGISTER
     DWORD = 4
-
-    def get_int(self):
-        return self.value - 1
 
 
 @dataclass(slots=True,frozen=True)
@@ -126,31 +122,17 @@ op_codes = {
 
 
 @dataclass(slots=True,frozen=True)
-class OpToken(Token):
-    value: str
-
-    def get_binary(self) -> int:
-        return op_codes[self.value.upper()].id
-
-
-@dataclass(slots=True,frozen=True)
-class ParameterToken(Token):
-    value: str
+class ParameterToken:
+    value_type: str
+    value: int
 
     def get_binary(self, arg_type: ParameterType) -> tuple[ParameterType, int]:
-        type_value: ParameterType = ParameterType((self.value[0] in ('r','R')) + 1)
-        int_value: int
-        if self.value[0].isdigit():
-            int_value = int(self.value[0])
-        elif self.value[0] == '\'' and self.value[-1] == '\'':
-            int_value = ord(self.value[1:-1].encode().decode("unicode_escape"))
-        else:
-            int_value = int(self.value[1:])
+        type_value: ParameterType = ParameterType((self.value_type == 'register') + 1)
         if not arg_type.value & type_value:
             raise ValueError(f"Op requires '{arg_type.name}', found '{type_value.name}'")
-        elif abs(int_value) > 0xffffffff:
-            raise ValueError(f"Immediate Value too Large")
-        return type_value, int_value & 0xffffffff
+        elif abs(self.value) > 0xffffffff:
+            raise ValueError(f"Immediate Value '{self.value}' is too Large")
+        return type_value, self.value & 0xffffffff
 
 
 @dataclass_json
@@ -198,6 +180,50 @@ class Error:
     type: str
 
 
+class Compiler(Transformer):
+
+    def NUMBER(self, tok):
+        return "number", int(tok, 0)
+
+    def WORD(self, tok):
+        return str(tok)
+
+    def CHAR(self, tok):
+        text = str(tok[1:-1])
+        return "number", ord(text.encode().decode("unicode_escape"))
+
+    def dot_label(self, items):
+        return "label", f'.{items[0]}'
+
+    def defined(self, items):
+        tok = items[0]
+        return ('register', int(tok[1:])) if tok[0].upper() == 'R' else ('define', tok)
+
+    def param(self, items):
+        return items[0]
+
+    @v_args(meta=True)
+    def line(self, meta: Meta, items):
+        if items[0][0] == '\n':
+            return meta.line, 'newline', '\n', None
+        return meta.line - 1, *items[0]
+
+    def instruction(self, items):
+        opname = items[0].upper()
+        args = items[1:]
+
+        return 'instruction', opname, args
+
+    def label(self, items):
+        return 'label', items[0][1], None
+
+    def define(self, items):
+        return 'define', *items
+
+    def start(self, items):
+        return items
+
+
 @app.post('/emulator/urcl/compile')
 @limiter.limit("5 per minute")
 def compile():
@@ -205,137 +231,88 @@ def compile():
     if not isinstance(body, str):
         return send_file('http/index.html', mimetype='text/html'), 400
 
+    tree = parser.parse(body)
+    program = Compiler().transform(tree)
+    print(program)
+
     defines: dict[str, ParameterToken] = {}
-    tokens: list[list[Token]] = []
-
-    line_number: int = -1
-    instruction: int = 0
-    lines = body.split('\n')
-    has_error = False
-    errors: dict[int, Error] = {}
-
-    for line in lines:
-        skip = False
-        line_number += 1
-        split = iter([a.strip() for a in line.split(' ')])
-        for e in split:
-            if skip: break
-            if e == '': continue
-            if e[0] in [';', '#']: break
-            if e[0] == '.':
-                defines[e] = ParameterToken(line_number, str(instruction))
-            elif e.lower() == '@define':
-                define_name = ''
-                while define_name == '':
-                    define_name = next(split)
-                parameter = ''
-                while parameter == '':
-                    parameter = next(split)
-                defines[define_name] = ParameterToken(line_number, parameter)
-            else:
-                try:
-                    instruction += 1
-                    arguments = op_codes[e.upper()].arguments
-                    if len(arguments) > 0:
-                        if arguments[0] == ParameterType.DWORD:
-                            instruction -= 1
-                            instruction += sum(1 for a in line.split(" ") if a != '') - 1
-                        else:
-                            instruction += len(arguments)
-
-                except KeyError:
-                    has_error = True
-                    errors[line_number] = Error(line_number, f"Invalid op code '{e}'", "error")
-                skip = True
-
-    line_number = -1
     instruction = 0
-    for line in lines:
-        skip = False
-        line_number += 1
-        split = [a.strip() for a in line.split(' ')]
-        operands: list = []
-        first = True
-        for e in split:
-            if e == '': continue
-            if e[0] == '.': skip = True
-            break
-
-        if skip: continue
-        for e in split:
-            if e == '': continue
-            if e[0] in [';', '#']: break
-            elif e.lower() == "@define":
-                break
-            else:
-                if first:
-                    operands.append(OpToken(line_number, e))
-                else:
-                    define = defines.get(e)
-                    operands.append(ParameterToken(line_number, define.value if define is not None else e))
+    errors: dict[int, Error] = {}
+    for line, instruction_type, name, args in program:
+        if instruction_type == "instruction":
+            try:
+                operator: OpCode = op_codes[name]
+            except KeyError:
+                errors[line] = Error(line, f"Invalid op code '{name}'", "error")
+                continue
+            print(line, name, args)
+            instruction += len(args)
+            if operator.id >= 0:
                 instruction += 1
-            first = False
-        if operands:
-            tokens.append(operands)
+        elif instruction_type == "label":
+            print(line, name)
+            defines[name] = ParameterToken('number', instruction)
+        elif instruction_type == "define":
+            print(line, name, args)
+            defines[name] = ParameterToken(*args)
 
     compiled: list[int] = []
-    for token_list in tokens:
-        operand = token_list.pop(0)
-        if not isinstance(operand, OpToken): continue
-        op_code_integer: int
-        try:
-            op_code_integer = operand.get_binary()
-        except KeyError:
-            has_error = True
-            errors[line_number] = Error(line_number, f"Invalid op code '{operand.value}'", "error")
-            continue
-        if op_code_integer >= 0:
-            op_code_index = len(compiled)
-            compiled.append(op_code_integer)
-        else:
-            op_code_index = -1
-        args_list = op_codes[operand.value.upper()].arguments
-        if len(args_list) == 0:
-            continue
-        if args_list[0] == ParameterType.DWORD:
-            for token in token_list:
-                _, value = token.get_binary(ParameterType.IMMEDIATE)
-                compiled.append(value)
-            continue
-
-        if len(args_list) != len(token_list):
-            has_error = True
-            errors[operand.line] = Error(operand.line, "Invalid parameter count", "error")
-
-        args = iter(args_list)
-        arg_mask = 0
-        for token in token_list:
-            token: ParameterToken
+    for line, instruction_type, name, args in program:
+        if instruction_type == "instruction":
             try:
-                param_type, value = token.get_binary(next(args))
-                arg_mask = (arg_mask << 1) | param_type -1
-                compiled.append(value)
-            except ValueError:
-                has_error = True
-                errors[token.line] = Error(token.line, f"Invalid parameter '{token.value}'", "error")
-            except StopIteration:
-                has_error = True
-                errors[token.line] = Error(token.line, f"Invalid parameter count", "error")
-        
-        if op_code_index >= 0:
-            compiled[op_code_index] |= arg_mask << 8
+                operator: OpCode = op_codes[name]
+            except KeyError:
+                continue
+            if operator.id < 0:
+                for arg_type, arg in args:
+                    if arg_type != 'number':
+                        errors[line] = Error(line, f"Invalid parameter '{arg_type}'", "error")
+                        continue
+                    compiled.append(arg)
+                continue
+            if len(operator.arguments) != len(args):
+                errors[line] = Error(line, "Invalid parameter count", "error")
+            args_iter = iter(operator.arguments)
+            arg_mask = 0
+            operator_index = len(compiled)
+            compiled.append(0)
+            for arg in args:
+                arg_type, arg_value = arg
+                try:
+                    print(arg_type, arg_value)
+                    if arg_type in ('define', 'label'):
+                        print(arg_value)
+                        try:
+                            param_type, value = defines[arg_value].get_binary(next(args_iter))
+                        except KeyError:
+                            param_type, value = 'number', 0
+                            errors[line] = Error(line, f"Invalid parameter '{arg_value}'", "error")
+                    else:
+                        param_type, value = ParameterToken(arg_type, arg_value).get_binary(next(args_iter))
+                    arg_mask <<= 1
+                    if param_type == ParameterType.REGISTER:
+                        arg_mask |= 1
+                    compiled.append(value)
+                except ValueError as e:
+                    errors[line] = Error(line, f"{e}", "error")
+                except StopIteration:
+                    errors[line] = Error(line, f"Invalid parameter count", "error")
+
+            compiled[operator_index] = operator.id | (arg_mask << 8)
+
+    if errors:
+        return list(errors.values()), 400
 
     auth_integer = random.randint(1, 2147483647)
     compiled.append(op_codes["HLT"].id)
-    program_bytes: bytes | None = None
     try:
-        program_bytes = array.array('I', compiled).tobytes()
+        program_bytes: bytes = array.array('I', compiled).tobytes()
     except OverflowError:
-        has_error = True
-        errors[0] = Error(line_number, f"Program using more than 32 bits for some words", type="error")
-
-    if has_error:
+        errors[0] = Error(0, f"Program using more than 32 bits for some words", type="error")
         return list(errors.values()), 400
+
+    print(compiled)
+
     database.setex(auth_integer.to_bytes(4, signed=True), 300, program_bytes)
     return f"ok {auth_integer}", 200
 
