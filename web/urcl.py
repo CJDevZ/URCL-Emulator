@@ -89,15 +89,6 @@ class URCLCompiler(Compiler):
                     operator: OpCode = OpCode[name]
                 except KeyError:
                     continue
-                if operator.id < 0:
-                    for arg_type, arg in args:
-                        if arg_type != 'number':
-                            errors[line] = Error(line, f"Invalid parameter '{arg_type}'", "error")
-                            continue
-                        compiled.append(arg)
-                    continue
-                if len(operator.arguments) != len(args):
-                    errors[line] = Error(line, "Invalid parameter count", "error")
                 error = operator.add(compiled, defines.get, *args)
                 if error is not None:
                     errors[line] = Error(line, error, "error")

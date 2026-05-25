@@ -120,6 +120,8 @@ class OpCode(Enum):
                 except ValueError as e:
                     return str(e)
             return None
+        if len(params) != len(self.arguments):
+            return "Invalid parameter count"
         args_iter = iter(self.arguments)
         arg_mask = 0
         operator_index = len(compiled)
