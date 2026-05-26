@@ -108,13 +108,11 @@ class OpCode(Enum):
     def add(self, compiled: list[int], define_getter: Callable[[str], ParameterToken], *params: tuple[str, str]) -> Optional[str]:
         if self.id < 0:
             for arg_type, value in params:
-                try:
-                    while arg_type in ('define', 'label'):
-                        defined = define_getter(value)
-                        arg_type, value = defined.value_type, defined.value
-                except KeyError:
-                    arg_type, value = 'number', 0
-                    return f"Unknown constant '{value}'"
+                while arg_type in ('define', 'label'):
+                    defined = define_getter(value)
+                    if defined is None:
+                        return f"Unknown constant '{value}'"
+                    arg_type, value = defined.value_type, defined.value
                 try:
                     compiled.append(ParameterToken(arg_type, value).get_binary('number')[1])
                 except ValueError as e:
@@ -129,13 +127,11 @@ class OpCode(Enum):
         for arg in params:
             arg_type, value = arg
             try:
-                try:
-                    while arg_type in ('define', 'label'):
-                        defined = define_getter(value)
-                        arg_type, value = defined.value_type, defined.value
-                except KeyError:
-                    arg_type, value = 'number', 0
-                    return f"Unknown constant '{value}'"
+                while arg_type in ('define', 'label'):
+                    defined = define_getter(value)
+                    if defined is None:
+                        return f"Unknown constant '{value}'"
+                    arg_type, value = defined.value_type, defined.value
                 arg_type, value = ParameterToken(arg_type, value).get_binary(next(args_iter))
                 arg_mask <<= 1
                 if arg_type == 'register':
@@ -153,5 +149,5 @@ class Compiler:
     def __init__(self, parser: Lark):
         self.parser = parser
 
-    def compile(self, text: str) -> str | list[Error]:
+    def compile(self, text: str) -> bytes | list[Error]:
         return []

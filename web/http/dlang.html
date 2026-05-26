@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<title>URCL Compiler</title>
-		<link rel="stylesheet" href="../static/urcl/style.css">
+		<title>DLang Compiler</title>
+		<link rel="stylesheet" href="../static/dlang/style.css">
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js" charset="utf-8"></script>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ext-language_tools.min.js"></script>
 	</head>
 	<body>
 		<div class="main-layout">
-			<div class="editor-container" id="editor">; some comment
-# 'nother comment
+			<div class="editor-container" id="editor">// some comment
+/* 'nother comment
+yes
+*/
 </div>
 
 			<div class="console-container">
@@ -20,11 +22,11 @@
 			<div class="controls">
 				<button onclick="uploadCode()">Compile & Upload</button>
 				<button onclick="saveCode()">Save</button>
-				<input type="file" id="fileLoader" style="display: none;" accept=".urcl,.txt">
+				<input type="file" id="fileLoader" style="display: none;" accept=".dlang,.txt">
 				<button onclick="loadCode()">Load From File</button>
 			</div>
 		</div>
-		<script src="/static/urcl/script.js"></script>
-		<script src="/static/urcl/ace.js"></script>
+		<script src="/static/dlang/script.js"></script>
+		<script src="/static/dlang/ace.js"></script>
 	</body>
 </html>
