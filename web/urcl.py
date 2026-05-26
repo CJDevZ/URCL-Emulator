@@ -16,7 +16,7 @@ class URCLTransformer(Transformer):
 
     def CHAR(self, tok):
         text = str(tok[1:-1])
-        return "number", ord(text.encode().decode("unicode_escape"))
+        return "number", int.from_bytes(text.encode().decode("unicode_escape").encode(), "big")
 
     def dot_label(self, items):
         return "label", f'.{items[0]}'
@@ -63,9 +63,10 @@ class URCLCompiler(Compiler):
         program = URCLTransformer().transform(tree)
 
         defines: dict[str, ParameterToken] = {}
-        for i in range(100):
+        for i in range(99):
             defines['r'+str(i)] = ParameterToken('register', i)
             defines['R'+str(i)] = ParameterToken('register', i)
+        defines['SP'] = ParameterToken('register', 99)
         instruction = 0
         for line, instruction_type, name, args in program:
             if instruction_type == "instruction":
