@@ -1,10 +1,10 @@
 const instructions = ("ADD|RSH|LOD|STR|BGE|NOR|SUB|JMP|MOV|NOP|IMM|LSH|INC|DEC|NEG|AND|OR|NOT|XNOR|XOR|NAND|BRL|BRG|BRE|BNE|BOD|BEV|BLE|BRZ|BNZ|BRN|BRP|PSH|POP|CAL|RET|HLT|CPY|BRC|BNC|MLT|UMLT|SUMLT|DIV|SDIV|MOD|BSR|BSL|SRS|BSS|SBRL|SBRG|SBLE|SBGE|SETE|SETNE|SETG|SETL|SETGE|SETLE|SETC|SETNC|SSETG|SSETL|SSETGE|SSETLE|LLOD|LSTR|ABS|IN|OUT|DW")
 
-ace.define("ace/mode/urcl_highlight_rules", ["require", "exports", "module", "ace/lib/oop", "ace/mode/text_highlight_rules"], function (require, exports, module) {
+ace.define("ace/mode/dlang_highlight_rules", ["require", "exports", "module", "ace/lib/oop", "ace/mode/text_highlight_rules"], function (require, exports, module) {
   var oop = require("ace/lib/oop")
   var TextHighlightRules = require("ace/mode/text_highlight_rules").TextHighlightRules
 
-  function URCLHighlightRules () {
+  function DLangHighlightRules () {
 
     this.$rules = {
       start: [
@@ -43,37 +43,37 @@ ace.define("ace/mode/urcl_highlight_rules", ["require", "exports", "module", "ac
         {
             // Comments: # or ;
             token: "comment",
-            regex: "(#.*|;.*)"
+            regex: "(//.*|/\*.*\*/)"
         }
       ]
     }
   }
-  oop.inherits(URCLHighlightRules, TextHighlightRules);
-  exports.URCLHighlightRules = URCLHighlightRules
+  oop.inherits(DLangHighlightRules, TextHighlightRules);
+  exports.DLangHighlightRules = DLangHighlightRules
 })
 
-ace.define("ace/mode/urcl", ["require", "exports", "module", "ace/lib/oop", "ace/mode/text", "ace/mode/urcl_highlight_rules"], function (require, exports, module) {
+ace.define("ace/mode/dlang", ["require", "exports", "module", "ace/lib/oop", "ace/mode/text", "ace/mode/dlang_highlight_rules"], function (require, exports, module) {
   var oop = require("ace/lib/oop")
   var TextMode = require("ace/mode/text").Mode
-  var URCLHighlightRules = require("ace/mode/urcl_highlight_rules").URCLHighlightRules
+  var DLangHighlightRules = require("ace/mode/dlang_highlight_rules").DLangHighlightRules
 
   function Mode () {
-    this.HighlightRules = URCLHighlightRules
+    this.HighlightRules = DLangHighlightRules
   }
 
   oop.inherits(Mode, TextMode);
 
   (function () {
-    this.$id = "ace/mode/urcl"
+    this.$id = "ace/mode/dlang"
   }).call(Mode.prototype)
 
   exports.Mode = Mode
 })
 
-editor.session.setMode("ace/mode/urcl")
+editor.session.setMode("ace/mode/dlang")
 editor.completers = [{
   getCompletions: function(editor, session, pos, prefix, callback) {
-    if (session.$mode.$id !== "ace/mode/urcl") callback(null, []);
+    if (session.$mode.$id !== "ace/mode/dlang") callback(null, []);
 
     let completions = [];
 

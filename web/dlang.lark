@@ -1,0 +1,84 @@
+start: stmt+
+
+?stmt: expr ";"
+
+     | var_decl ";"
+     | if_stmt
+     | while_stmt
+     | for_stmt
+
+     | return_stmt ";"
+     | func_def
+
+?body: stmt
+     | "{" stmt* "}"        -> block
+
+if_stmt: "if" expr body
+while_stmt: "while" expr body
+for_stmt: "for" CNAME "in" expr ".." expr body
+
+func_def: "fn" CNAME "(" [ parlist ] ")" block
+
+parlist: param ("," param)*
+param: CNAME ":" type_expr
+
+function: "(" [ parlist ] ")" "=>" block
+
+return_stmt: "return" [ expr ]
+
+?type_expr: CNAME                            -> basic_type
+         | "fn" "(" [ type_list ] ")"
+         | "[" type_expr ";" INT "]"                -> list_type
+
+block: ("{" stmt* "}")
+
+type_list: type_expr ("," type_expr)*
+
+var_decl: "var" CNAME ":" type_expr [ "=" expr ]    -> var_declaration
+        | "const" CNAME ":" type_expr "=" expr      -> const_declaration
+
+?expr: assignment
+
+?assignment: CNAME ASSIGN_OP expr     -> assign
+           | logical_or
+
+?logical_or:    logical_and ("||" logical_and)*
+?logical_and:   comparison ("&&" comparison)*
+?comparison:    term (COMP_OP term)*
+?term:          factor (TERM_OP factor)*
+?factor:        atom (FACT_OP atom)*
+
+?atom       : "true"        -> true
+            | "false"       -> false
+
+            | INT           -> num
+            | CNAME         -> var
+
+            | STRING        -> str
+            | CHAR          -> char
+            | list_literal  -> list_lit
+
+            | call
+            | function
+
+            | unop atom
+            | "(" expr ")"
+
+list_literal: "[" [ expr ("," expr)* ] "]"
+
+call: CNAME "(" [ arglist ] ")"
+arglist: expr ("," expr)*
+
+INT       : /[0-9]+/
+CHAR      : /'([^\\\\']|\\\\.)'/
+
+ASSIGN_OP: "=" | "+=" | "-=" | "*=" | "/="
+COMP_OP   : "<=" | ">=" | "<" | ">" | "==" | "!="
+TERM_OP   : "+" | "-" | ".."
+FACT_OP   : "*" | "/" | "%"
+unop      : "-" | "!"
+
+%import common.CNAME
+%import common.ESCAPED_STRING -> STRING
+%import common.WS
+%ignore WS

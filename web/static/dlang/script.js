@@ -12,7 +12,7 @@ editor.session.on('change', saveToLocal);
 let consoleOutput = document.getElementById('console-output');
 
 document.addEventListener('DOMContentLoaded', () => {
-    const savedCode = localStorage.getItem('code');
+    const savedCode = localStorage.getItem('dlang_code');
     if (savedCode) {
         editor.setValue(savedCode, -1);
     }
@@ -22,7 +22,7 @@ async function uploadCode() {
     const code = editor.getValue();
 
     try {
-        const response = await fetch(`urcl/compile`, {
+        const response = await fetch(`dlang/compile`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -70,12 +70,12 @@ function saveCode() {
     const text = editor.getValue();
     const blob = new Blob([text], { type: 'text/plain' });
     const anchor = document.createElement('a');
-    anchor.download = 'program.urcl';
+    anchor.download = 'program.dlang';
     anchor.href = window.URL.createObjectURL(blob);
     anchor.click();
 }
 
 function saveToLocal() {
     const code = editor.getValue();
-    localStorage.setItem('code', code);
+    localStorage.setItem('dlang_code', code);
 }

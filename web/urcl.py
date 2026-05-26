@@ -1,6 +1,6 @@
 import array
 
-from lark import Transformer, v_args, Lark, UnexpectedCharacters
+from lark import Transformer, v_args, Lark, UnexpectedCharacters, UnexpectedToken
 from lark.tree import Meta
 
 from compiler import Compiler, Error, ParameterToken, OpCode
@@ -57,7 +57,7 @@ class URCLCompiler(Compiler):
         errors: dict[int, Error] = {}
         try:
             tree = self.parser.parse(text)
-        except UnexpectedCharacters as e:
+        except (UnexpectedCharacters, UnexpectedToken) as e:
             errors[e.line - 1] = Error(e.line - 1, str(e), 'error')
             return list(errors.values())
         program = URCLTransformer().transform(tree)
@@ -79,8 +79,14 @@ class URCLCompiler(Compiler):
                 if operator.id >= 0:
                     instruction += 1
             elif instruction_type == "label":
+                if name in defines:
+                    errors[line] = Error(line, f"Duplicate label '{name}'", "error")
+                    continue
                 defines[name] = ParameterToken('number', instruction)
             elif instruction_type == "define":
+                if name in defines:
+                    errors[line] = Error(line, f"Duplicate constant '{name}'", "error")
+                    continue
                 defines[name] = ParameterToken(*args)
 
         compiled: list[int] = []

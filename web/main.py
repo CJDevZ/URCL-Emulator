@@ -11,7 +11,8 @@ from flask import Flask, send_file, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from compiler import Error
+from compiler import Error, Compiler
+from dlang import DLangCompiler
 from urcl import URCLCompiler
 
 database = redis.Redis(host='localhost', port=6379, db=0)
@@ -24,8 +25,12 @@ limiter = Limiter(
 )
 
 @app.get('/emulator/urcl')
-def hello_world():
+def hello_world_urcl():
     return send_file('http/urcl.html')
+
+@app.get('/emulator/dlang')
+def hello_world_dlang():
+    return send_file('http/dlang.html')
 
 
 @dataclass_json
@@ -67,15 +72,10 @@ def emulator_get_urcl():
 
 
 urcl_compiler = URCLCompiler()
+dlang_compiler = DLangCompiler()
 
-@app.post('/emulator/urcl/compile')
-@limiter.limit("5 per minute")
-def compile():
-    body: bytes = request.get_json()
-    if not isinstance(body, str):
-        return send_file('http/urcl.html', mimetype='text/html'), 400
-
-    program_bytes: bytes | list[Error] = urcl_compiler.compile(body)
+def compile_code(compiler: Compiler, body: bytes):
+    program_bytes: bytes | list[Error] = compiler.compile(body)
 
     if isinstance(program_bytes, bytes):
         auth_integer = random.randint(1, 2147483647)
@@ -83,6 +83,23 @@ def compile():
         return f"ok {auth_integer}", 200
     else:
         return program_bytes, 400
+
+@app.post('/emulator/urcl/compile')
+@limiter.limit("5 per minute")
+def compile_urcl():
+    body: bytes = request.get_json()
+    if not isinstance(body, str):
+        return send_file('http/urcl.html', mimetype='text/html'), 400
+    return compile_code(urcl_compiler, body)
+
+@app.post('/emulator/dlang/compile')
+@limiter.limit("5 per minute")
+def compile_dlang():
+    body: bytes = request.get_json()
+    if not isinstance(body, str):
+        return send_file('http/dlang.html', mimetype='text/html'), 400
+    return compile_code(dlang_compiler, body)
+
 
 if __name__ == '__main__':
     app.run()
