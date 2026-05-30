@@ -10,6 +10,7 @@ class Error:
     row: int
     text: str
     type: str
+    column: int = 0
 
 @dataclass(slots=True,frozen=True)
 class ParameterToken:
@@ -105,14 +106,15 @@ class OpCode(Enum):
         self.id = id
         self.arguments = arguments
 
-    def add(self, compiled: list[int], define_getter: Callable[[str], ParameterToken], *params: tuple[str, str]) -> Optional[str]:
+    def add(self, compiled: list[int], define_getter: Optional[Callable[[str], ParameterToken]], *params: tuple[str, str | int]) -> Optional[str]:
         if self.id < 0:
             for arg_type, value in params:
-                while arg_type in ('define', 'label'):
-                    defined = define_getter(value)
-                    if defined is None:
-                        return f"Unknown constant '{value}'"
-                    arg_type, value = defined.value_type, defined.value
+                if define_getter is not None:
+                    while arg_type in ('define', 'label'):
+                        defined = define_getter(value)
+                        if defined is None:
+                            return f"Unknown constant '{value}'"
+                        arg_type, value = defined.value_type, defined.value
                 try:
                     compiled.append(ParameterToken(arg_type, value).get_binary('number')[1])
                 except ValueError as e:
@@ -132,9 +134,10 @@ class OpCode(Enum):
                     if defined is None:
                         return f"Unknown constant '{value}'"
                     arg_type, value = defined.value_type, defined.value
-                arg_type, value = ParameterToken(arg_type, value).get_binary(next(args_iter))
+                accepted_types = next(args_iter)
+                arg_type, value = ParameterToken(arg_type, value).get_binary(accepted_types)
                 arg_mask <<= 1
-                if arg_type == 'register':
+                if isinstance(accepted_types, list) and arg_type == 'register':
                     arg_mask |= 1
                 compiled.append(value)
             except ValueError as e:

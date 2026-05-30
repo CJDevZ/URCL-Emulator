@@ -13,6 +13,8 @@ execute if entity @a[tag=urcl.player,predicate=urcl:left] run scoreboard players
 execute if entity @a[tag=urcl.player,predicate=urcl:jump] run scoreboard players add #port.dpad urcl.runtime 16
 execute if entity @a[tag=urcl.player,predicate=urcl:sprint] run scoreboard players add #port.dpad urcl.runtime 32
 
-
+execute if score $stop urcl.runtime.alive matches 1 run function urcl:stop
+scoreboard players set $stop urcl.runtime.alive 1
 execute as b4c2ef2d-f22f-40b1-9b81-452342af735c if score @s urcl.runtime.alive matches 1.. unless score @s urcl.runtime.delay matches 1.. run function urcl:run/tick/_
+scoreboard players reset $stop urcl.runtime.alive
 data modify entity b4c2ef2d-f22f-40b1-9b81-452342af735c item.components.minecraft:custom_model_data.colors set from storage urcl:temp frame_buffer
