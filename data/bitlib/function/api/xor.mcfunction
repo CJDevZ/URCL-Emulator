@@ -1,38 +1,129 @@
-function bitlib:priv/init_bit_bool
+scoreboard players set >C bitlib 0
 
-scoreboard players operation #a0 bitlib.tmp += #b0 bitlib.tmp
-scoreboard players operation #a1 bitlib.tmp += #b1 bitlib.tmp
-scoreboard players operation #a2 bitlib.tmp += #b2 bitlib.tmp
-scoreboard players operation #a3 bitlib.tmp += #b3 bitlib.tmp
-scoreboard players operation #a4 bitlib.tmp += #b4 bitlib.tmp
-scoreboard players operation #a5 bitlib.tmp += #b5 bitlib.tmp
-scoreboard players operation #a6 bitlib.tmp += #b6 bitlib.tmp
-scoreboard players operation #a7 bitlib.tmp += #b7 bitlib.tmp
-scoreboard players operation #a8 bitlib.tmp += #b8 bitlib.tmp
-scoreboard players operation #a9 bitlib.tmp += #b9 bitlib.tmp
-scoreboard players operation #a10 bitlib.tmp += #b10 bitlib.tmp
-scoreboard players operation #a11 bitlib.tmp += #b11 bitlib.tmp
-scoreboard players operation #a12 bitlib.tmp += #b12 bitlib.tmp
-scoreboard players operation #a13 bitlib.tmp += #b13 bitlib.tmp
-scoreboard players operation #a14 bitlib.tmp += #b14 bitlib.tmp
-scoreboard players operation #a15 bitlib.tmp += #b15 bitlib.tmp
-scoreboard players operation #a16 bitlib.tmp += #b16 bitlib.tmp
-scoreboard players operation #a17 bitlib.tmp += #b17 bitlib.tmp
-scoreboard players operation #a18 bitlib.tmp += #b18 bitlib.tmp
-scoreboard players operation #a19 bitlib.tmp += #b19 bitlib.tmp
-scoreboard players operation #a20 bitlib.tmp += #b20 bitlib.tmp
-scoreboard players operation #a21 bitlib.tmp += #b21 bitlib.tmp
-scoreboard players operation #a22 bitlib.tmp += #b22 bitlib.tmp
-scoreboard players operation #a23 bitlib.tmp += #b23 bitlib.tmp
-scoreboard players operation #a24 bitlib.tmp += #b24 bitlib.tmp
-scoreboard players operation #a25 bitlib.tmp += #b25 bitlib.tmp
-scoreboard players operation #a26 bitlib.tmp += #b26 bitlib.tmp
-scoreboard players operation #a27 bitlib.tmp += #b27 bitlib.tmp
-scoreboard players operation #a28 bitlib.tmp += #b28 bitlib.tmp
-scoreboard players operation #a29 bitlib.tmp += #b29 bitlib.tmp
-scoreboard players operation #a30 bitlib.tmp += #b30 bitlib.tmp
-scoreboard players operation #a31 bitlib.tmp += #b31 bitlib.tmp
+execute if predicate bitlib:msb_xor run scoreboard players operation >C bitlib += -2147483648 __int__
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
 
-scoreboard players operation * bitlib.tmp %= 2 __int__
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 1073741824
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
 
-return run function bitlib:priv/bit_bool_combine
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 536870912
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 268435456
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 134217728
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 67108864
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 33554432
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 16777216
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 8388608
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 4194304
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 2097152
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 1048576
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 524288
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 262144
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 131072
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 65536
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 32768
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 16384
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 8192
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 4096
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 2048
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 1024
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 512
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 256
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 128
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 64
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 32
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 16
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 8
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 4
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 2
+scoreboard players operation >A bitlib += >A bitlib
+scoreboard players operation >B bitlib += >B bitlib
+
+execute if predicate bitlib:msb_xor run scoreboard players add >C bitlib 1
+
+return run scoreboard players operation >A bitlib = >C bitlib

@@ -54,6 +54,7 @@ class URCLCompiler(Compiler):
             super().__init__(Lark(f.read(), parser="lalr", propagate_positions=True))
 
     def compile(self, text: str) -> bytes | list[Error]:
+        text += "\n"
         errors: dict[int, Error] = {}
         try:
             tree = self.parser.parse(text)

@@ -1,2 +1,2 @@
-scoreboard players operation >B bitlib < 32 __int__
+execute if score >B bitlib matches 32.. run return 0
 return run function bitlib:priv/bsl

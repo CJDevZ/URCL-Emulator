@@ -12,5 +12,7 @@ execute store result storage urcl:temp mem_val int 1 run scoreboard players add 
 execute store result storage urcl:temp mem_val int 1 run function urcl:run/arg/get/memory with storage urcl:temp
 execute store result score >B bitlib run function urcl:run/arg/get/_ with storage urcl:temp
 
-execute store result score out= urcl.runtime run function bitlib:api/nand
+execute store result score out= urcl.runtime run function bitlib:api/and
+scoreboard players operation out= urcl.runtime *= -1 __int__
+scoreboard players remove out= urcl.runtime 1
 function urcl:run/arg/set/register with storage urcl:temp
