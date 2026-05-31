@@ -1,4 +1,4 @@
-scoreboard players operation >B bitlib < 32 __int__
+execute if score >B bitlib matches 32.. run return 0
 scoreboard players remove >B bitlib 1
 execute unless score >B bitlib matches 0.. run return run scoreboard players get >A bitlib
 scoreboard players operation >A bitlib /= 2 __int__

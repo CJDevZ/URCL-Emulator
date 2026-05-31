@@ -22,6 +22,5 @@ defined: WORD
 
 %import common.NEWLINE
 
-%ignore " "
-%ignore /#[^\r\n]*/
-%ignore /;[^\r\n]*/
+%ignore /[ \t]+/
+%ignore /[#;][^\r\n]*/
