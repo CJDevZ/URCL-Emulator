@@ -1,1 +1,0 @@
-$data modify storage urcl:temp copy_args set from storage urcl:rom ops[{name:"$(op)"}].args

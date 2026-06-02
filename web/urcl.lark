@@ -3,6 +3,8 @@ start: line*
 line: instruction NEWLINE
         | label NEWLINE
         | define NEWLINE
+        | define_word NEWLINE
+        | define_word_list NEWLINE
         | NEWLINE
 
 label: dot_label
@@ -19,8 +21,10 @@ CHAR: /'(\\.|[^\\'])'/
 WORD: /[a-zA-Z_][a-zA-Z0-9_]*/
 NUMBER: /-?(0x[0-9a-fA-F_]+|0b[01_]+|[0-9_]+)/
 defined: WORD
+define_word: "DW"i param
+define_word_list: "DW"i "[" param* "]"
 
 %import common.NEWLINE
 
 %ignore /[ \t]+/
-%ignore /[#;][^\r\n]*/
+%ignore /(\/\/|[#;])[^\r\n]*/

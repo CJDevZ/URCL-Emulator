@@ -100,26 +100,12 @@ class OpCode(Enum):
     ABS = 68, ['register', 'register']
     IN = 69, ['register', 'number']
     OUT = 70, ['number', ['register', 'number']]
-    DW = -1, []
 
     def __init__(self, id: int, arguments: list[str | list[str]]):
         self.id = id
         self.arguments = arguments
 
     def add(self, compiled: list[int], define_getter: Optional[Callable[[str], ParameterToken]], *params: tuple[str, str | int]) -> Optional[str]:
-        if self.id < 0:
-            for arg_type, value in params:
-                if define_getter is not None:
-                    while arg_type in ('define', 'label'):
-                        defined = define_getter(value)
-                        if defined is None:
-                            return f"Unknown constant '{value}'"
-                        arg_type, value = defined.value_type, defined.value
-                try:
-                    compiled.append(ParameterToken(arg_type, value).get_binary('number')[1])
-                except ValueError as e:
-                    return str(e)
-            return None
         if len(params) != len(self.arguments):
             return "Invalid parameter count"
         args_iter = iter(self.arguments)
@@ -136,9 +122,10 @@ class OpCode(Enum):
                     arg_type, value = defined.value_type, defined.value
                 accepted_types = next(args_iter)
                 arg_type, value = ParameterToken(arg_type, value).get_binary(accepted_types)
-                arg_mask <<= 1
-                if isinstance(accepted_types, list) and arg_type == 'register':
-                    arg_mask |= 1
+                if isinstance(accepted_types, list):
+                    arg_mask <<= 1
+                    if arg_type == 'register':
+                        arg_mask |= 1
                 compiled.append(value)
             except ValueError as e:
                 return str(e)

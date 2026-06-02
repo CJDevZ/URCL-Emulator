@@ -1,9 +1,74 @@
 import array
+from typing import Callable
 
 from lark import Transformer, v_args, Lark, UnexpectedCharacters, UnexpectedToken
 from lark.tree import Meta
 
-from compiler import Compiler, Error, ParameterToken, OpCode
+from compiler import Compiler, Error, ParameterToken, OpCode, dataclass
+
+
+@dataclass(slots=True,frozen=True)
+class Label:
+    name: str
+
+    def build(self, instruction: int, error: Callable[[str], None], defines: dict[str, ParameterToken]):
+        if self.name in defines:
+            error(f"Duplicate label '{self.name}'")
+            return
+        defines[self.name] = ParameterToken('number', instruction)
+
+
+@dataclass(slots=True,frozen=True)
+class Define:
+    name: str
+    value: tuple[str, str | int]
+
+    def build(self, error: Callable[[str], None], defines: dict[str, ParameterToken]):
+        if self.name in defines:
+            error(f"Duplicate constant '{self.name}'")
+            return
+        defines[self.name] = ParameterToken(*self.value)
+
+
+@dataclass(slots=True,frozen=True)
+class DefineWords:
+    words: list[tuple[str, str | int]]
+
+    @property
+    def length(self) -> int:
+        return len(self.words)
+
+    def build(self, compiled: list[int], error: Callable[[str], None], defines: dict[str, ParameterToken]):
+        for arg_type, value in self.words:
+            while arg_type in ('define', 'label'):
+                defined = defines.get(value)
+                if defined is None:
+                    error(f"Unknown constant '{value}'")
+                    return
+                arg_type, value = defined.value_type, defined.value
+            try:
+                compiled.append(ParameterToken(arg_type, value).get_binary('number')[1])
+            except ValueError as e:
+                error(str(e))
+
+
+@dataclass(slots=True,frozen=True)
+class Instruction:
+    name: str
+    arguments: list[tuple[[str, str]]]
+
+    @property
+    def length(self) -> int:
+        return len(self.arguments) + 1
+
+    def build(self, compiled: list[int], error: Callable[[str], None], defines: dict[str, ParameterToken]):
+        try:
+            operator: OpCode = OpCode[self.name]
+        except KeyError:
+            error(f"Invalid op code '{self.name}'")
+            return
+        if (e := operator.add(compiled, defines.get, *self.arguments)) is not None:
+            error(e)
 
 
 class URCLTransformer(Transformer):
@@ -29,21 +94,27 @@ class URCLTransformer(Transformer):
 
     @v_args(meta=True)
     def line(self, meta: Meta, items):
-        if items[0][0] == '\n':
-            return meta.line, 'newline', '\n', None
-        return meta.line - 1, *items[0]
+        #if items[0][0] == '\n':
+        #    return meta.line, 'newline', '\n', None
+        return meta.line - 1, items[0]
 
     def instruction(self, items):
-        opname = items[0].upper()
-        args = items[1:]
+        operator: str = items[0].upper()
+        arguments: list[str] = items[1:]
 
-        return 'instruction', opname, args
+        return Instruction(operator, arguments)
 
     def label(self, items):
-        return 'label', items[0][1], None
+        return Label(items[0][1])
 
     def define(self, items):
-        return 'define', *items
+        return Define(*items)
+
+    def define_word(self, items):
+        return DefineWords([items[0]])
+
+    def define_word_list(self, items):
+        return DefineWords(items)
 
     def start(self, items):
         return items
@@ -69,37 +140,29 @@ class URCLCompiler(Compiler):
             defines['R'+str(i)] = ParameterToken('register', i)
         defines['SP'] = ParameterToken('register', 99)
         instruction = 0
-        for line, instruction_type, name, args in program:
-            if instruction_type == "instruction":
-                try:
-                    operator: OpCode = OpCode[name]
-                except KeyError:
-                    errors[line] = Error(line, f"Invalid op code '{name}'", "error")
-                    continue
-                instruction += len(args)
-                if operator.id >= 0:
-                    instruction += 1
-            elif instruction_type == "label":
-                if name in defines:
-                    errors[line] = Error(line, f"Duplicate label '{name}'", "error")
-                    continue
-                defines[name] = ParameterToken('number', instruction)
-            elif instruction_type == "define":
-                if name in defines:
-                    errors[line] = Error(line, f"Duplicate constant '{name}'", "error")
-                    continue
-                defines[name] = ParameterToken(*args)
+
+        def make_error_handler(line):
+            return lambda error: errors.__setitem__(
+                line,
+                Error(line, error, "error")
+            )
+
+        for (line, buildable) in program:
+            add_error = make_error_handler(line)
+
+            if isinstance(buildable, Label):
+                buildable.build(instruction, add_error, defines)
+            elif isinstance(buildable, Define):
+                buildable.build(add_error, defines)
+            elif isinstance(buildable, (DefineWords, Instruction)):
+                instruction += buildable.length
 
         compiled: list[int] = []
-        for line, instruction_type, name, args in program:
-            if instruction_type == "instruction":
-                try:
-                    operator: OpCode = OpCode[name]
-                except KeyError:
-                    continue
-                error = operator.add(compiled, defines.get, *args)
-                if error is not None:
-                    errors[line] = Error(line, error, "error")
+        for (line, buildable) in program:
+            if not isinstance(buildable, (Instruction, DefineWords)):
+                continue
+            add_error = make_error_handler(line)
+            buildable.build(compiled, add_error, defines)
 
         if errors:
             return list(errors.values())
