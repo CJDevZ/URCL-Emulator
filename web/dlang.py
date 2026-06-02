@@ -426,11 +426,19 @@ class InlineFunction(Function):
 
 @dataclass(slots=True,frozen=True)
 class SysFunction:
-    op_code: OpCode
+    builder: Callable[[Block, list[int], list[tuple[str, str | int]]], None]
+
+    @staticmethod
+    def tunnel(op_code: OpCode) -> SysFunction:
+        def builder(block: Block, compiled: list[int], arguments: list[tuple[str, str | int]]):
+            block.error(op_code.add(compiled, None, *arguments))
+
+        return SysFunction(builder)
 
     def build(self, block: Block, compiled: list[int], data: list[int], arguments: list[Value]):
         try:
-            block.error(self.op_code.add(compiled, None, *(arg.get(block, compiled, data) for index, arg in enumerate(arguments))))
+            resolved = (arg.get(block, compiled, data) for arg in arguments)
+            self.builder(block, compiled, list(resolved))
         except NameError as e:
             return e.args[0]
         except NotImplementedError as e:
@@ -536,7 +544,10 @@ class DLangCompiler(Compiler):
         with open("dlang.lark", "r") as f:
             super().__init__(Lark(f.read(), parser="lalr", propagate_positions=True))
 
-        self.builtin_functions: dict[str, SysFunction] = {'set_port': SysFunction(OpCode.OUT)}
+        def get_port(block: Block, compiled: list[int], arguments: list[tuple[str, str | int]]):
+            OpCode.IN.add(compiled, None, *arguments)
+
+        self.builtin_functions: dict[str, SysFunction] = {'set_port': SysFunction.tunnel(OpCode.OUT),'get_port': SysFunction(get_port)}
 
     def compile(self, text: str) -> bytes | list[Error]:
         errors: dict[int, Error] = {}

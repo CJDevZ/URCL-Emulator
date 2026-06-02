@@ -43,7 +43,7 @@ ace.define("ace/mode/urcl_highlight_rules", ["require", "exports", "module", "ac
         {
             // Comments: # or ;
             token: "comment",
-            regex: "(#.*|;.*)"
+            regex: "(//.*|#.*|;.*)"
         }
       ]
     }
