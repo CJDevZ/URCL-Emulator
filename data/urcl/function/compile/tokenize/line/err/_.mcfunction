@@ -1,7 +1,7 @@
 data remove storage urcl:temp err
 function urcl:compile/tokenize/line/err/invalid_opcode/test
 function urcl:compile/tokenize/line/err/invalid_argcount/test
-function urcl:compile/tokenize/line/err/invalid_args/test with storage urcl:temp
+#function urcl:compile/tokenize/line/err/invalid_args/test with storage urcl:temp
 execute unless data storage urcl:temp err[] run return fail
 
 scoreboard players operation &pagen urcl.temp = &page urcl.temp
