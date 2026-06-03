@@ -8,7 +8,7 @@ execute store success score pc0_type= urcl.runtime if predicate urcl:arg/registe
 scoreboard players operation $op_code urcl.runtime += $op_code urcl.runtime
 
 execute store result storage urcl:temp mem_val int 1 run function urcl:run/arg/get/pc1 with storage urcl:temp
-execute store result score #1 urcl.math run function urcl:run/arg/get/memory with storage urcl:temp
+execute store result score out= urcl.runtime run function urcl:run/arg/get/memory with storage urcl:temp
 
 execute store result storage urcl:temp mem_val int 1 run function urcl:run/arg/get/pc0_type with storage urcl:temp
 function urcl:run/arg/set/memory with storage urcl:temp
