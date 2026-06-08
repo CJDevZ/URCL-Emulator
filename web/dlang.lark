@@ -1,6 +1,6 @@
 start: stmt+
 
-?stmt: expr ";"
+stmt: expr ";"
 
      | var_decl ";"
      | if_stmt
@@ -12,14 +12,19 @@ start: stmt+
      | continue_stmt ";"
      | func_def
 
-?body: stmt
+?body: stmt                 -> block
      | "{" stmt* "}"        -> block
 
-if_stmt: "if" expr body
+if_stmt: matched_if
+       | unmatched_if
+matched_if: "if" logical_or body "else" body
+unmatched_if: "if" logical_or body
+            | "if" logical_or matched_if "else" unmatched_if
+
 loop_stmt: "loop" body
 for_stmt: "for" CNAME "in" expr ".." expr body
 
-func_def: "fn" CNAME "(" [ parlist ] ")" block
+func_def: "fn" CNAME "(" [ parlist ] ")" [type_expr] block
 
 parlist: param ("," param)*
 param: CNAME ":" type_expr
@@ -32,16 +37,18 @@ continue_stmt: "continue"
 
 ?type_expr: CNAME                            -> basic_type
          | "fn" "(" [ type_list ] ")"
-         | "[" type_expr ";" INT "]"                -> list_type
+         | "[" type_expr ";" INT "]"         -> list_type
 
 block: ("{" stmt* "}")
 
 type_list: type_expr ("," type_expr)*
 
-AMP: "&"
+POINTER: "*"
+pointer_list: POINTER*
 
-var_decl: "var" CNAME [ ":" [ AMP ] type_expr ] [ "=" expr ]    -> var_declaration
-        | "const" CNAME [ ":" [ AMP ] type_expr ] "=" expr      -> const_declaration
+var_decl: "var" CNAME [ ":" pointer_list type_expr ] [ "=" expr ]    -> var_declaration
+        | "static" CNAME [ ":" pointer_list type_expr ] [ "=" expr ] -> static_declaration
+        | "const" CNAME [ ":" pointer_list type_expr ] "=" expr      -> const_declaration
 
 ?expr: assignment
 
@@ -54,22 +61,22 @@ var_decl: "var" CNAME [ ":" [ AMP ] type_expr ] [ "=" expr ]    -> var_declarati
 ?term:          factor (TERM_OP factor)*
 ?factor:        atom (FACT_OP atom)*
 
-?atom       : "true"        -> true
-            | "false"       -> false
+?atom       : "true"                 -> true
+            | "false"                -> false
 
-            | INT           -> num
-            | CNAME         -> var
+            | INT                    -> num
+            | CNAME [ "[" expr "]" ] -> var
 
-            | STRING        -> str
-            | CHAR          -> char
-            | list_literal  -> list_lit
-            | list_repeated -> list_rep
+            | STRING                 -> str
+            | CHAR                   -> char
+            | list_literal           -> list_lit
+            | list_repeated          -> list_rep
 
             | call
             | function
 
             | unop atom
-            | "(" expr ")"
+            | "(" logical_or ")"
 
 list_literal: "[" [ expr ("," expr)* ] "]"
 list_repeated: "[" expr ";" INT "]"
@@ -80,13 +87,14 @@ arglist: expr ("," expr)*
 INT       : /-?(0x[0-9a-fA-F_]+|0b[01_]+|[0-9_]+)/
 CHAR      : /'([^\\\\']|\\\\.)'/
 
-ASSIGN_OP: "=" | "+=" | "-=" | "*=" | "/=" | "%="
+ASSIGN_OP: "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>="
 COMP_OP   : "<=" | ">=" | "<" | ">" | "==" | "!="
 TERM_OP   : "+" | "-" | ".."
-FACT_OP   : "*" | "/" | "%"
+FACT_OP   : "*" | "/" | "%" | "!" | "<<" | ">>"
 unop      : "-" | "!"
 
 %import common.CNAME
 %import common.ESCAPED_STRING -> STRING
 %import common.WS
 %ignore WS
+%ignore /\/\/[^\r\n]*/

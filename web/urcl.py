@@ -4,7 +4,7 @@ from typing import Callable
 from lark import Transformer, v_args, Lark, UnexpectedCharacters, UnexpectedToken
 from lark.tree import Meta
 
-from compiler import Compiler, Error, ParameterToken, OpCode, dataclass
+from compiler import Compiler, Error, ParameterToken, OpCode, dataclass, TypedValue
 
 
 @dataclass(slots=True,frozen=True)
@@ -21,7 +21,7 @@ class Label:
 @dataclass(slots=True,frozen=True)
 class Define:
     name: str
-    value: tuple[str, str | int]
+    value: TypedValue
 
     def build(self, error: Callable[[str], None], defines: dict[str, ParameterToken]):
         if self.name in defines:
@@ -32,7 +32,7 @@ class Define:
 
 @dataclass(slots=True,frozen=True)
 class DefineWords:
-    words: list[tuple[str, str | int]]
+    words: list[TypedValue]
 
     @property
     def length(self) -> int:
@@ -94,8 +94,6 @@ class URCLTransformer(Transformer):
 
     @v_args(meta=True)
     def line(self, meta: Meta, items):
-        #if items[0][0] == '\n':
-        #    return meta.line, 'newline', '\n', None
         return meta.line - 1, items[0]
 
     def instruction(self, items):
@@ -138,6 +136,7 @@ class URCLCompiler(Compiler):
         for i in range(99):
             defines['r'+str(i)] = ParameterToken('register', i)
             defines['R'+str(i)] = ParameterToken('register', i)
+            defines['$'+str(i)] = ParameterToken('register', i)
         defines['SP'] = ParameterToken('register', 99)
         instruction = 0
 

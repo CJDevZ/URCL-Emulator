@@ -5,6 +5,9 @@ from typing import Callable, Optional
 from lark import Lark
 
 
+TypedValue = tuple[str, str | int]
+
+
 @dataclass(slots=True,frozen=True)
 class Error:
     row: int
@@ -105,7 +108,7 @@ class OpCode(Enum):
         self.id = id
         self.arguments = arguments
 
-    def add(self, compiled: list[int], define_getter: Optional[Callable[[str], ParameterToken]], *params: tuple[str, str | int]) -> Optional[str]:
+    def add(self, compiled: list[int], define_getter: Optional[Callable[[str], ParameterToken]], *params: TypedValue) -> Optional[str]:
         if len(params) != len(self.arguments):
             return "Invalid parameter count"
         args_iter = iter(self.arguments)

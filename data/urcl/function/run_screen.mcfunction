@@ -14,6 +14,8 @@ scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.alive 1
 execute store result score b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.malloc store result storage urcl:runtime workspace.malloc[0].next int 1 if data storage urcl:temp program_code[]
 
 scoreboard players reset b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.delay
+scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.port.x 0
+scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.port.y 0
 scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.port.xy 0
 scoreboard players set b4c2ef2d-f22f-40b1-9b81-452342af735c urcl.runtime.port.rgb 0
 

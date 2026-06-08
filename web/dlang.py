@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import array
+import operator
+from abc import ABC, abstractmethod
+from contextlib import contextmanager, ExitStack
 from enum import Enum
 from typing import Optional, Callable, Any
 
@@ -10,6 +13,13 @@ from lark.tree import Meta
 
 import utils
 from compiler import Compiler, Error, OpCode, dataclass
+
+
+TypedValue = tuple[str, int]
+
+
+RETURN_VALUE: TypedValue = 'register', 1
+STACK_POINTER: TypedValue = 'register', 99
 
 
 class LinkType(Enum):
@@ -43,62 +53,72 @@ class VarType:
         return self.name
 
 
-class ReferenceVarType(VarType):
+class PointerVarType(VarType):
     def __init__(self, base: VarType):
-        super().__init__(f"&{base.name}", 1)
+        super().__init__(f"*{base.name}", 1)
         self.base = base
 
     def __eq__(self, other):
-        return isinstance(other, ReferenceVarType) and self.base == other.base
+        return isinstance(other, PointerVarType) and self.base == other.base
 
 
+VOID = VarType('void', 0)
 I32 = VarType('i32', 1, True)
-STR = ReferenceVarType(VarType('str', 1))
+
+
+class ValueGetter(ABC):
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int) -> VarType:
+        return I32
+
+    def get_either(self, block: Block, compiled: list[int], data: list[int], destination: int) -> tuple[VarType, TypedValue]:
+        if (constant := self.get_constant(block, data)) is not None:
+            return constant[0], ('number', constant[1])
+        return self.get(block, compiled, data, destination), ('register', destination)
+
+    def get_constant(self, block: Block, data: list[int], index: Optional[ValueGetter] = None) -> Optional[tuple[VarType, int]]:
+        return None
 
 
 @dataclass(slots=True,frozen=True)
-class Value:
-    value_type: VarType
+class ConstValue(ValueGetter):
+    var_type: VarType
+    value: int
+
+    def get_constant(self, block: Block, data: list[int], index: Optional[int] = None) -> tuple[VarType, int]:
+        return self.var_type, self.value
+
+
+@dataclass(slots=True,frozen=True)
+class DataValue(ValueGetter):
+    var_type: VarType
     value: Any
+    
+    def get_constant(self, block: Block, data: list[int], index: Optional[int] = None) -> Optional[tuple[VarType, int]]:
+        current_index = len(data)
+        if isinstance(self.value, list):
+            data.extend(self.value)
+        else:
+            data.extend(self.value)
+        return self.var_type, current_index
 
-    def get(self, block: Block, compiled: list[int], data: list[int]) -> tuple[str, str | int]:
-        if self.value_type.name == 'variable':
-            variable = block.variables.get(self.value)
-            if variable is None:
-                raise NameError(f"Unknown variable '{self.value}'")
-            variable.get_value(block, compiled, data, None, ('register', 2))
-            return 'register', 2
-        elif self.value_type == STR:
-            encoded = [*self.value.encode().decode('unicode_escape').encode('ascii'), 0]
-            current_index = len(data)
-            data.extend(encoded)
-            return 'data', current_index
 
-        if isinstance(self.value_type, ListVarType):
-            length = len(self.value)
+@dataclass(slots=True,frozen=True)
+class VariableValue(ValueGetter):
+    name: str
+    index: Optional[ValueGetter] = None
 
-            offsets: list[int] = [0] * length
-            payload: list[int] = []
+    def get_constant(self, block: Block, data: list[int], index: Optional[int] = None) -> Optional[tuple[VarType, int]]:
+        if (variable := block.variables.get(self.name)) is None:
+            return None
+        if self.index is None:
+            return variable.get_constant(block, data, None)
+        return variable.get_constant(block, data, self.index)
 
-            data_index = len(data)
-            current_index = len(data) + length
-
-            for i, value in enumerate(self.value):
-                block.linker(data_index + i, current_index, LinkType.DATA, LinkType.DATA)
-
-                if isinstance(value, str):
-                    encoded = [*value.encode().decode('unicode_escape').encode('ascii'), 0]
-                    payload.extend(encoded)
-                    current_index += len(encoded)
-                else:
-                    payload.append(value)
-                    current_index += 1
-
-            data.extend(offsets)
-            data.extend(payload)
-            return 'number', data_index
-
-        return 'number', int(self.value)
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int) -> VarType:
+        if (variable := block.variables.get(self.name)) is None:
+            block.error(f"Unknown variable '{self.name}'")
+            return VOID
+        return variable.get_value(block, compiled, data, self.index, destination)
 
 
 class Buildable:
@@ -107,31 +127,72 @@ class Buildable:
 
 
 @dataclass(slots=True)
-class Variable:
-    var_type: Optional[VarType]
+class Variable(ValueGetter):
+    var_type: VarType
 
-    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[Value], destination: tuple[str, str | int]):
+    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], destination: int) -> VarType:
         pass
 
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[Value], operator: MathOperator, value: Value):
+    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
         pass
 
 
 @dataclass(slots=True)
-class ConstVariable(Variable):
-    data_index: int
+class DirectRegister(Variable):
+    var_type: VarType
+    register: int
 
-    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[Value], destination: tuple[str, str | int]):
+    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
         if index is not None:
-            if not isinstance(self.var_type, ListVarType):
-                block.error("Variable is not an array")
-                return
-            OpCode.LLOD.add(compiled, None, destination, index.get(block, compiled, data), ('number', 0))
-        else:
-            OpCode.LOD.add(compiled, None, destination, ('number', 0))
-        block.linker(len(compiled) - 1, self.data_index, LinkType.RAW, LinkType.DATA)
+            block.error("Variable is not indexable")
+            return
+        value_type, gotten_value = value
+        if value_type != self.var_type:
+            block.error("Type mismatch")
+            return
+        operator.apply(compiled, self.register, ('register', self.register), gotten_value)
 
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[Value], operator: MathOperator, value: Value):
+
+@dataclass(slots=True)
+class ConstVariable(Variable):
+    value: int
+
+    def get_constant(self, block: Block, data: list[int], index: Optional[ValueGetter] = None) -> Optional[tuple[VarType, int]]:
+        if index is None:
+            return self.var_type, self.value
+        if not isinstance(self.var_type, PointerVarType):
+            block.error("Variable is not indexable")
+            return self.var_type, self.value
+        if (const_index := index.get_constant(block, data, None)) is None:
+            return None
+        index_type, index_value = const_index
+        if index_type != I32:
+            block.error("Cannot index an array with a non-integer type")
+            return self.var_type, self.value
+        return self.var_type.base, data[self.value + index_value]
+
+    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], destination: int) -> VarType:
+        if index is not None:
+            if not isinstance(self.var_type, PointerVarType):
+                block.error("Variable is not indexable")
+                return self.var_type
+            with block.acquire_register() as index_register:
+                index_type, index_tuple = index.get_either(block, compiled, data, index_register)
+            if index_type != I32:
+                block.error("Cannot index an array with a non-integer type")
+                return self.var_type
+            OpCode.LLOD.add(compiled, None, ('register', destination), ('number', 0), index_tuple)
+            block.linker(len(compiled) - 2, self.value, LinkType.RAW, LinkType.DATA)
+            return self.var_type.base
+        else:
+            if self.var_type == I32:
+                OpCode.MOV.add(compiled, None, ('register', destination), ('number', self.value))
+            elif isinstance(self.var_type, PointerVarType):
+                OpCode.MOV.add(compiled, None, ('register', destination), ('number', 0))
+                block.linker(len(compiled) - 1, self.value, LinkType.RAW, LinkType.DATA)
+        return self.var_type
+
+    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: ValueGetter) -> None:
         block.error("Constant cannot be changed")
         return
 
@@ -140,110 +201,218 @@ class ConstVariable(Variable):
 class StaticVariable(Variable):
     data_index: int
 
-    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[Value], destination: tuple[str, str | int]):
+    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], destination: int) -> VarType:
         if index is not None:
-            if not isinstance(self.var_type, ListVarType):
-                block.error("Variable is not an array")
-                return
-            OpCode.LLOD.add(compiled, None, destination, index.get(block, compiled, data), ('number', 0))
+            if not isinstance(self.var_type, PointerVarType):
+                block.error("Variable is not indexable")
+                return self.var_type
+            with block.acquire_register() as index_register:
+                index_type, index_tuple = index.get_either(block, compiled, data, index_register)
+            if index_type != I32:
+                block.error("Cannot index an array with a non-integer type")
+                return self.var_type
+            OpCode.LOD.add(compiled, None, ('register', destination), ('number', 0))
+            block.linker(len(compiled) - 1, self.data_index, LinkType.RAW, LinkType.DATA)
+            OpCode.LLOD.add(compiled, None, ('register', destination), ('register', destination), index_tuple)
+            return self.var_type.base
         else:
-            OpCode.LOD.add(compiled, None, destination, ('number', 0))
-        block.linker(len(compiled) - 1, self.data_index, LinkType.RAW, LinkType.DATA)
+            OpCode.LOD.add(compiled, None, ('register', destination), ('number', 0))
+            block.linker(len(compiled) - 1, self.data_index, LinkType.RAW, LinkType.DATA)
+        return self.var_type
 
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[Value], operator: MathOperator, value: Value):
+    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
+        if value is None:
+            block.error("Value is Null")
+            return
+        value_type, gotten_value = value
         if index is not None:
-            if not isinstance(self.var_type, ListVarType):
+            if not isinstance(self.var_type, PointerVarType):
                 block.error("Variable is not an array")
                 return
-            if self.var_type.base != value.value_type:
-                block.error(f"Expected '{self.var_type.base}', got '{value.value_type}'")
+            if value_type != self.var_type.base:
+                block.error(f"Expected '{self.var_type.base}', got '{value_type}'")
                 return
-            self.get_value(block, compiled, data, index, ('register', 3))
-            operator.apply(block, compiled, data, ('register', 3), ('register', 3), value.get(block, compiled, data))
-            block.linker(len(compiled) + 1, self.data_index, LinkType.RAW, LinkType.DATA)
-            OpCode.LSTR.add(compiled, None, ('number', 0), index.get(block, compiled, data), ('register', 3))
+            with ExitStack() as stack:
+                if operator != MathOperator.SET:
+                    store_register = stack.enter_context(block.acquire_register())
+                    index_register = stack.enter_context(block.acquire_register())
+
+                    store_type = self.get_value(block, compiled, data, index, store_register)
+                    index_type, index_tuple = index.get_either(block, compiled, data, index_register)
+
+                    if index_type != I32:
+                        block.error("Cannot index an array with a non-integer type")
+                        return
+                    operator.apply(compiled, store_register, ('register', store_register), gotten_value)
+                    if isinstance(self.var_type, PointerVarType):
+                        value_register = stack.enter_context(block.acquire_register())
+                        OpCode.LOD.add(compiled, None, ('register', value_register), ('number', 0))
+                        block.linker(len(compiled) - 1, self.data_index, LinkType.RAW, LinkType.DATA)
+                        OpCode.LSTR.add(compiled, None, ('register', value_register), index_tuple, ('register', store_register))
+                    else:
+                        block.linker(len(compiled) + 1, self.data_index, LinkType.RAW, LinkType.DATA)
+                        OpCode.LSTR.add(compiled, None, ('number', 0), index_tuple, ('register', store_register))
+                else:
+                    index_register = stack.enter_context(block.acquire_register())
+                    index_type, index_tuple = index.get_either(block, compiled, data, index_register)
+                    if index_type != I32:
+                        block.error("Cannot index an array with a non-integer type")
+                        return
+                    if isinstance(self.var_type, PointerVarType):
+                        value_register = stack.enter_context(block.acquire_register())
+                        OpCode.LOD.add(compiled, None, ('register', value_register), ('number', 0))
+                        block.linker(len(compiled) - 1, self.data_index, LinkType.RAW, LinkType.DATA)
+                        OpCode.LSTR.add(compiled, None, ('register', value_register), index_tuple, gotten_value)
+                    else:
+                        block.linker(len(compiled) + 1, self.data_index, LinkType.RAW, LinkType.DATA)
+                        OpCode.LSTR.add(compiled, None, ('number', 0), index_tuple, gotten_value)
         else:
-            if self.var_type != value.value_type:
-                block.error(f"Expected '{self.var_type}', got '{value.value_type}'")
+            if self.var_type is not None and value_type != self.var_type:
+                block.error(f"Expected '{self.var_type}', got '{value_type}'")
                 return
-            self.get_value(block, compiled, data, None, ('register', 3))
-            operator.apply(block, compiled, data, ('register', 3), ('register', 3), value.get(block, compiled, data))
-            block.linker(len(compiled) + 1, self.data_index, LinkType.RAW, LinkType.DATA)
-            OpCode.STR.add(compiled, None, ('number', 0), ('register', 3))
+            if operator != MathOperator.SET:
+                with block.acquire_register() as store_register:
+                    store_type = self.get_value(block, compiled, data, index, store_register)
+                operator.apply(compiled, store_register, ('register', store_register), gotten_value)
+                block.linker(len(compiled) + 1, self.data_index, LinkType.RAW, LinkType.DATA)
+                OpCode.STR.add(compiled, None, ('number', 0), ('register', store_register))
+            else:
+                block.linker(len(compiled) + 1, self.data_index, LinkType.RAW, LinkType.DATA)
+                OpCode.STR.add(compiled, None, ('number', 0), gotten_value)
 
 
 @dataclass(slots=True)
 class LocalVariable(Variable):
     offset: int
 
-    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[Value], destination: tuple[str, str | int]):
+    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], destination: int) -> VarType:
         if self.offset:
-            OpCode.LLOD.add(compiled, None, destination, ('register', 99), ('number', self.offset))
+            OpCode.LLOD.add(compiled, None, ('register', destination), STACK_POINTER, ('number', self.offset))
         else:
-            OpCode.LOD.add(compiled, None, destination, ('register', 99))
+            OpCode.LOD.add(compiled, None, ('register', destination), STACK_POINTER)
+        return self.var_type
 
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[Value], operator: MathOperator, value: Value):
-        if self.offset:
-            OpCode.LSTR.add(compiled, None, ('register', 99), ('number', self.offset), value.get(block, compiled, data))
+    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]):
+        value_type, gotten_value = value
+        if self.var_type is not None and value_type != self.var_type:
+            block.error(f"Expected '{self.var_type}', got '{value_type}'")
+            return
+        if operator == MathOperator.SET:
+            if self.offset:
+                OpCode.LSTR.add(compiled, None, STACK_POINTER, ('number', self.offset), gotten_value)
+            else:
+                OpCode.STR.add(compiled, None, STACK_POINTER, gotten_value)
         else:
-            OpCode.STR.add(compiled, None, ('register', 99), value.get(block, compiled, data))
+            with block.acquire_register() as store_register:
+                store_type = self.get_value(block, compiled, data, index, store_register)
+            operator.apply(compiled, store_register, ('register', store_register), gotten_value)
+            if self.offset:
+                OpCode.LSTR.add(compiled, None, STACK_POINTER, ('number', self.offset), ('register', store_register))
+            else:
+                OpCode.STR.add(compiled, None, STACK_POINTER, ('register', store_register))
 
 
 @dataclass(slots=True)
 class VarDeclaration(Buildable):
     name: str
     var_type: Optional[VarType]
-    value: Value
-    const: bool
+    value: ValueGetter
+    const: bool = False
+    static: bool = False
 
     def build(self, block: Block, compiled: list[int], data: list[int]):
-        if self.var_type is None:
-            self.var_type = self.value.value_type
-        elif self.value.value_type != self.var_type:
-            print(object.__str__(self.var_type), object.__str__(self.value.value_type))
-            block.error(f"Expected variable type '{self.var_type}', got '{self.value.value_type}' instead")
+        if self.value is None and self.var_type is None:
+            block.error("Cannot find variable's type from context")
             return
         if self.const:
+            if self.value is None:
+                block.error(f"Constant variable must have an initial value")
+                return
+            if (constant := self.value.get_constant(block, data)) is None:
+                block.error("Value isn't constant")
+                return
+            value_type, value = constant
+            if self.var_type is None:
+                self.var_type = value_type
+            if not self.var_type.__eq__(value_type):
+                print(object.__str__(self.var_type), object.__str__(value_type))
+                block.error(f"Expected variable type '{self.var_type}', got '{value_type}' instead")
+                return
+            block.variables[self.name] = ConstVariable(self.var_type, value)
+        elif self.static or block.root:
+            if self.value is None:
+                constant = self.var_type, 0
+            elif (constant := self.value.get_constant(block, data)) is None:
+                block.error("Value isn't constant")
+                return
+            value_type, value = constant
+            if self.var_type is None:
+                self.var_type = value_type
+            if not self.var_type.__eq__(value_type):
+                print(object.__str__(self.var_type), object.__str__(value_type))
+                block.error(f"Expected variable type '{self.var_type}', got '{value_type}' instead")
+                return
             data_index = len(data)
-            store_type, stored = self.value.get(block, compiled, data)
-            block.variables[self.name] = ConstVariable(self.var_type, data_index)
-            data.append(stored)
-        elif block.root:
-            data_index = len(data)
-            store_type, stored = self.value.get(block, compiled, data)
             block.variables[self.name] = StaticVariable(self.var_type, data_index)
-            data.append(stored)
+            if isinstance(self.var_type, PointerVarType):
+                block.linker(len(data), value, LinkType.DATA, LinkType.DATA)
+            data.append(value)
         else:
-            block.variables[self.name] = LocalVariable(self.var_type, block.local_variable_offset)
+            if block.root:
+                block.error("Variables must be static in root")
+                return
+            if self.value is not None:
+                with block.acquire_register() as value_register:
+                    value_tuple = self.value.get_either(block, compiled, data, value_register)
+                value_type = value_tuple[0]
+                if self.var_type is None:
+                    self.var_type = value_type
+                elif not value_type.__eq__(self.var_type):
+                    print(object.__str__(self.var_type), object.__str__(value_type))
+                    block.error(f"Expected variable type '{self.var_type}', got '{value_type}' instead")
+                    return
+            else:
+                value_tuple: tuple[VarType, TypedValue] = self.var_type, ('number', 0)
+            variable = LocalVariable(self.var_type, block.local_variable_offset)
+            block.variables[self.name] = variable
             block.local_variable_offset += self.var_type.size
+            variable.set_value(block, compiled, data, None, MathOperator.SET, value_tuple)
 
 
 @dataclass(slots=True)
 class VarAssignment(Buildable):
     name: str
-    index: Value
+    index: Optional[ValueGetter]
     operator: MathOperator
-    value: Value
+    value: ValueGetter
 
     def build(self, block: Block, compiled: list[int], data: list[int]):
         variable = block.variables.get(self.name)
         if variable is None:
             block.error(f"Variable '{self.name}' is not defined")
             return
-        variable.set_value(block, compiled, data, self.index, self.operator, self.value)
+        with block.acquire_register() as value_register:
+            variable.set_value(block, compiled, data, self.index, self.operator, self.value.get_either(block, compiled, data, value_register))
 
 
 @dataclass(slots=True,frozen=True)
-class FunctionCall(Buildable):
+class FunctionCall(Buildable, ValueGetter):
     name: str
-    arguments: list[Value]
+    arguments: list[ValueGetter]
 
     def build(self, block: Block, compiled: list[int], data: list[int]):
         function = block.functions.get(self.name)
         if function is None:
-            block.error(f"Unknown function '{self.name}'")
-        else:
-            function.build(block, compiled, data, self.arguments)
+            block.error(f"Function '{self.name}' is not defined")
+            return
+        function.call(block, compiled, data, self.arguments, 0)
+
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int) -> Optional[VarType]:
+        function = block.functions.get(self.name)
+        if function is None:
+            block.error(f"Function '{self.name}' is not defined")
+            return VOID
+        return function.call(block, compiled, data, self.arguments, destination)
 
 
 @dataclass(slots=True,frozen=True)
@@ -262,92 +431,195 @@ class LoopBlock(Buildable):
 
 
 class MathOperator(Enum):
-    SET = "=", OpCode.MOV, True
-    ADD = "+", OpCode.ADD
-    SUB = "-", OpCode.SUB
-    MUL = "*", OpCode.MLT
-    DIV = "/", OpCode.DIV
-    MOD = "%", OpCode.MOD
-    NOT = "!", OpCode.NOT
-    ADD_SELF = "+=", OpCode.ADD, True
-    SUB_SELF = "-=", OpCode.SUB, True
-    MUL_SELF = "*=", OpCode.MLT, True
-    DIV_SELF = "/=", OpCode.DIV, True
-    MOD_SELF = "%=", OpCode.MOD, True
-    AND_SELF = "&=", OpCode.AND, True
-    OR_SELF = "|=", OpCode.OR, True
-    XOR_SELF = "^=", OpCode.XOR, True
+    SET = "=", OpCode.MOV, None, True
+    ADD = "+", OpCode.ADD, operator.add
+    SUB = "-", OpCode.SUB, operator.sub
+    MUL = "*", OpCode.MLT, operator.mul
+    DIV = "/", OpCode.DIV, operator.floordiv
+    MOD = "%", OpCode.MOD, operator.mod
+    NOT = "!", OpCode.NOT, lambda a, b: operator.not_(b),
+    LSH = "<<", OpCode.BSL, operator.lshift
+    RSH = ">>", OpCode.BSR, operator.rshift
+    ADD_SELF = "+=", OpCode.ADD, operator.add, True
+    SUB_SELF = "-=", OpCode.SUB, operator.sub, True
+    MUL_SELF = "*=", OpCode.MLT, operator.mul, True
+    DIV_SELF = "/=", OpCode.DIV, operator.floordiv, True
+    MOD_SELF = "%=", OpCode.MOD, operator.mod, True
+    AND_SELF = "&=", OpCode.AND, operator.and_, True
+    OR_SELF = "|=", OpCode.OR, operator.or_, True
+    XOR_SELF = "^=", OpCode.XOR, operator.xor, True
+    LSH_SELF = "<<=", OpCode.BSL, operator.lshift, True
+    RSH_SELF = ">>=", OpCode.BSR, operator.rshift, True
 
-    def __new__(cls, symbol: str, opcode: OpCode, self_operation: bool = False):
+    def __new__(cls, symbol: str, opcode: OpCode, py_operator: Callable[[int, int], int], self_operation: bool = False):
         obj = object.__new__(cls)
         obj._value_ = symbol
         obj.opcode = opcode
+        obj.py_operator = py_operator
         obj.self_operation = self_operation
         return obj
 
-    def apply(self, block: Block, compiled: list[int], data: list[int], store: tuple[str, str | int], a: tuple[str, str | int], b: tuple[str, str | int]):
+    def apply(self, compiled: list[int], destination: int, a: TypedValue, b: TypedValue):
         if self.self_operation:
-            self.opcode.add(compiled, None, store, store, b)
-        else:
-            self.opcode.add(compiled, None, store, a, b)
+            a = 'register', destination
+        elif a[0] == 'number' and b[0] == 'number':
+            OpCode.MOV.add(compiled, None, ('register', destination), ('number', self.py_operator(a[1], b[1])))
+            return
+        self.opcode.add(compiled, None, ('register', destination), a, b)
+
+
+@dataclass(slots=True,frozen=True)
+class MathOperation(ValueGetter):
+    a: ValueGetter
+    operator: MathOperator
+    b: ValueGetter
+
+    def get_constant(self, block: Block, data: list[int], index: Optional[int] = None) -> Optional[tuple[VarType, int]]:
+        if (constant_a := self.a.get_constant(block, data)) is not None and (constant_b := self.b.get_constant(block, data)):
+            a_type, a_value = constant_a
+            b_type, b_value = constant_b
+            if a_type != b_type:
+                block.error("Type mismatch")
+                return None
+            return a_type, self.operator.py_operator(a_value, b_value)
+        return None
+
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int) -> VarType:
+        with block.acquire_register() as a_register, block.acquire_register() as b_register:
+            a_tuple = self.a.get_either(block, compiled, data, a_register)
+            b_tuple = self.b.get_either(block, compiled, data, b_register)
+            a_type = a_tuple[0]
+            b_type = b_tuple[0]
+
+            if a_type != b_type:
+                block.error("Type mismatch")
+                return I32
+
+            self.operator.apply(compiled, destination, a_tuple[1], b_tuple[1])
+            return a_type
 
 
 class CompOperator(Enum):
-    GE = ">=", OpCode.BGE, OpCode.SBGE, OpCode.BRL, OpCode.SBRL
-    LE = "<=", OpCode.BLE, OpCode.SBLE, OpCode.BRG, OpCode.SBRG
-    GT = ">", OpCode.BRG, OpCode.SBRG, OpCode.BLE, OpCode.SBLE
-    LT = "<", OpCode.BRL, OpCode.SBRL, OpCode.BGE, OpCode.SBGE
-    EQ = "==", OpCode.BRE, OpCode.BRE, OpCode.BNE, OpCode.BNE
-    NE = "!=", OpCode.BNE, OpCode.BNE, OpCode.BRE, OpCode.BRE
+    GE = ">=", OpCode.BGE, OpCode.SBGE
+    LE = "<=", OpCode.BLE, OpCode.SBLE
+    GT = ">", OpCode.BRG, OpCode.SBRG
+    LT = "<", OpCode.BRL, OpCode.SBRL
+    EQ = "==", OpCode.BRE, OpCode.BRE
+    NE = "!=", OpCode.BNE, OpCode.BNE
 
-    def __new__(cls, symbol: str, true: OpCode, signed_true: OpCode, false: OpCode, signed_false: OpCode):
+    def __new__(cls, symbol: str, true: OpCode, signed_true: OpCode):
         obj = object.__new__(cls)
         obj._value_ = symbol
         obj.true = true
         obj.signed_true = signed_true
-        obj.false = false
-        obj.signed_false = signed_false
         return obj
 
-    def branch_true(self, block: Block, compiled: list[int], a: tuple[str, str | int], b: tuple[str, str | int], jump: Callable[[], int], signed: bool = False):
-        block.linker(len(compiled) + 1, block.future(jump), LinkType.RAW, LinkType.FUTURE)
-        (self.signed_true if signed else self.true).add(compiled, None, ('number', 0), a, b)
+    __NEGATED_CACHE = None
+    __ZERO_BRANCH = None
 
-    def branch_false(self, block: Block, compiled: list[int], a: tuple[str, str | int], b: tuple[str, str | int], jump: Callable[[], int], signed: bool = False):
+    @classmethod
+    def _negated_map(cls):
+        if cls.__NEGATED_CACHE is None:
+            cls.__NEGATED_CACHE = {
+                cls.GE: cls.LT,
+                cls.LE: cls.GT,
+                cls.GT: cls.LE,
+                cls.LT: cls.GE,
+                cls.EQ: cls.NE,
+                cls.NE: cls.EQ
+            }
+        return cls.__NEGATED_CACHE
+
+    @classmethod
+    def _zero_branches(cls):
+        if cls.__ZERO_BRANCH is None:
+            cls.__ZERO_BRANCH = {
+                cls.EQ: OpCode.BRZ,
+                cls.NE: OpCode.BNZ,
+            }
+        return cls.__ZERO_BRANCH
+
+    @property
+    def negated(self):
+        return self.__class__._negated_map()[self]
+
+    def branch(self, block: Block, compiled: list[int], a: TypedValue, b: TypedValue, jump: Callable[[], int], signed: bool = False):
         block.linker(len(compiled) + 1, block.future(jump), LinkType.RAW, LinkType.FUTURE)
-        (self.signed_false if signed else self.false).add(compiled, None, ('number', 0), a, b)
+        zero_opcode = CompOperator._zero_branches().get(self)
+        if zero_opcode is not None:
+            if b == ('number', 0):
+                zero_opcode.add(compiled, None, ('number', 0), a)
+                return
+            if a == ('number', 0):
+                zero_opcode.add(compiled, None, ('number', 0), b)
+                return
+        (self.signed_true if signed else self.true).add(compiled, None, ('number', 0), a, b)
 
 
 @dataclass(slots=True,frozen=True)
 class Comparison:
-    a: Value | Comparison
+    a: ValueGetter | Comparison
     operator: CompOperator
-    b: Value | Comparison
+    b: ValueGetter | Comparison
 
     def build(self, block: Block, compiled: list[int], data: list[int], jump: Callable[[], int]):
-        #print("Types", self.a.value_type, self.b.value_type)
-        #if self.a.value_type != self.b.value_type:
-        #    block.error("Comparison with different types")
-        #    return
-        self.operator.branch_false(block, compiled, self.a.get(block, compiled, data), self.b.get(block, compiled, data), jump, self.a.value_type.signed)
+        with ExitStack() as stack:
+            if (constant := self.a.get_constant(block, data)) is not None:
+                a_type, a_tuple = constant[0], ('number', constant[1])
+            else:
+                a_register = stack.enter_context(block.acquire_register())
+                a_type = self.a.get(block, compiled, data, a_register)
+                a_tuple = ('register', a_register)
+
+            if (constant := self.b.get_constant(block, data)) is not None:
+                b_type, b_tuple = constant[0], ('number', constant[1])
+            else:
+                b_register = stack.enter_context(block.acquire_register())
+                b_type = self.b.get(block, compiled, data, b_register)
+                b_tuple = ('register', b_register)
+
+            if a_type != b_type:
+                block.error("Type mismatch")
+                return
+
+            self.operator.negated.branch(block, compiled, a_tuple, b_tuple, jump, a_type.signed)
 
 
 @dataclass(slots=True,frozen=True)
 class IfStatement(Buildable):
     condition: Comparison
     body: Block
+    else_: Optional[IfStatement | Block]
 
     def build(self, block: Block, compiled: list[int], data: list[int]):
         self.condition.build(block, compiled, data, lambda: self.body.end_index)
         self.body.copy_standard(block)
         self.body.build(block, compiled, data)
 
+        if self.else_ is not None:
+            jump_index = 0
+            OpCode.JMP.add(compiled, None, ('number', 0))
+            self.body.end_index = len(compiled)
+            block.linker(len(compiled) - 1, block.future(lambda: jump_index), LinkType.RAW, LinkType.FUTURE)
+            if isinstance(self.else_, Block):
+                self.else_.copy_standard(block)
+            self.else_.build(block, compiled, data)
+            jump_index = len(compiled)
+
+
+@dataclass(slots=True,frozen=True)
+class ReturnStatement(Buildable):
+    def build(self, block: Block, compiled: list[int], data: list[int]):
+        OpCode.ADD.add(compiled, None, STACK_POINTER, STACK_POINTER, ('number', 0))
+        block.linker(len(compiled) - 1, block.future(lambda: block.local_variable_offset), LinkType.RAW, LinkType.FUTURE)
+        compiled.append(OpCode.RET.id)
+
 
 @dataclass(slots=True,frozen=True)
 class BreakStatement(Buildable):
     def build(self, block: Block, compiled: list[int], data: list[int]):
         if block.loop_end_future < 0:
-            block.error("Cannot continue outside a loop")
+            block.error("Cannot break outside a loop")
             return
         OpCode.JMP.add(compiled, None, ('number', 0))
         block.linker(len(compiled) - 1, block.loop_end_future, LinkType.RAW, LinkType.FUTURE)
@@ -362,34 +634,38 @@ class ContinueStatement(Buildable):
         OpCode.JMP.add(compiled, None, ('number', block.start_index))
 
 
-class ListVarType(VarType):
+class ListVarType(PointerVarType):
     def __init__(self, base: VarType, length: int):
-        super().__init__(f"[{base.name};{length}]", 1)
-        self.base = base
+        super().__init__(base)
+        self.name = f'[{base.name};{length}]'
         self.length = length
 
     def __eq__(self, other):
         return isinstance(other, ListVarType) and self.base == other.base and self.length == other.length
 
     def __str__(self):
-        return f'[{self.name}, {self.length}]'
+        return self.name
 
 
 @dataclass(slots=True)
 class Block(Buildable):
     data: list[tuple[int, Buildable]]
     variables: dict[str, Variable]
-    functions: dict[str, SysFunction]
+    functions: dict[str, CallableFunction]
     error: Callable[[Optional[str]], None] = lambda *args: None
     error_line: Callable[[int, str], None] = lambda *args: None
     linker: Callable[[int, int, LinkType, LinkType], None] = lambda *args: None
-    future: Callable[[Callable[[], None]], int] = lambda *args: 0
+    future: Callable[[Callable[[], int]], int] = lambda *args: 0
     root: bool = False
+    allow_return: bool = False
     local_variable_offset: int = 0
     start_index: int = -1
     end_index: int = -1
     loop_start_index: int = -1
     loop_end_future: int = -1
+    registers: list[int] = None
+    g_compiled: list[int] = None
+    g_data: list[int] = None
 
     def copy_standard(self, block: Block):
         self.variables = dict(block.variables)
@@ -397,77 +673,155 @@ class Block(Buildable):
         self.error_line = block.error_line
         self.linker = block.linker
         self.future = block.future
+        self.local_variable_offset = block.local_variable_offset
         self.loop_start_index = block.loop_start_index
         self.loop_end_future = block.loop_end_future
+        self.registers = block.registers
+        self.g_compiled = block.g_compiled
+        self.g_data = block.g_compiled
+
+    def emit(self, opcode: OpCode, *params: ValueGetter, destination: Optional[Variable] = None, destination_index: int = 0):
+        arguments: list[TypedValue] = []
+        with ExitStack() as stack:
+            dest_register: int
+            for i, param in enumerate(params):
+                if destination is not None and destination_index == i:
+                    dest_register = stack.enter_context(self.acquire_register())
+                    arguments.append(('register', dest_register))
+                if (constant := param.get_constant(self, self.g_data)) is not None:
+                    arguments.append(('number', constant[1]))
+                else:
+                    arg_register = stack.enter_context(self.acquire_register())
+                    param.get(self, self.g_compiled, self.g_data, arg_register)
+                    arguments.append(('register', arg_register))
+            if destination is not None:
+                destination.set_value(self, self.g_compiled, self.g_data, None, MathOperator.SET,(destination.var_type, ('register', dest_register)))
+        opcode.add(self.g_compiled, None, *arguments)
+
 
     def build(self, block: Optional[Block], compiled: list[int], data: list[int]):
         self.start_index = len(compiled)
         for (line, buildable), is_last in utils.iterate_with_last(self.data):
             self.error = lambda error: self.error_line(line, error)
             print(buildable)
-            if self.root:
-                buildable.build(self, compiled, data)
-            else:
-                buildable.build(self, compiled, data)
+            buildable.build(self, compiled, data)
         self.end_index = len(compiled)
+        if block is not None:
+            block.local_variable_offset = self.local_variable_offset
+
+    @contextmanager
+    def acquire_register(self):
+        register = self.registers.pop()
+        try:
+            yield register
+        finally:
+            print(f"Put register {register} back")
+            self.registers.append(register)
 
 
-@dataclass(slots=True,frozen=True)
-class Function(Buildable):
+class CallableFunction(ABC):
+    @abstractmethod
+    def call(self, block: Block, compiled: list[int], data: list[int], arguments: list[ValueGetter], destination: int) -> Optional[VarType]:
+        ...
+
+
+@dataclass(slots=True)
+class Function(Buildable, CallableFunction):
     name: str
-    parameters: list[str]
+    parameters: list[LocalVariable]
+    return_type: VarType
     body: Block
+    code_index: int = -1
+
+    def build(self, block: Block, compiled: list[int], data: list[int]):
+        block.functions[self.name] = self
+
+        self.code_index = len(compiled)
+        local_variable_offset = 0
+        OpCode.SUB.add(compiled, None, STACK_POINTER, STACK_POINTER, ('number', 0))
+        block.linker(len(compiled) - 1, block.future(lambda: local_variable_offset), LinkType.RAW, LinkType.FUTURE)
+        self.body.copy_standard(block)
+        self.body.build(block, compiled, data)
+        local_variable_offset = self.body.local_variable_offset
+        if local_variable_offset == 1:
+            OpCode.INC.add(compiled, None, STACK_POINTER, STACK_POINTER)
+        elif local_variable_offset:
+            OpCode.ADD.add(compiled, None, STACK_POINTER, STACK_POINTER, ('number', local_variable_offset))
+
+        compiled.append(OpCode.RET.id)
+
+    def call(self, block: Block, compiled: list[int], data: list[int], arguments: list[ValueGetter], destination: int) -> Optional[VarType]:
+        OpCode.CAL.add(compiled, None, ('number', self.code_index))
 
 
-@dataclass(slots=True,frozen=True)
+@dataclass(slots=True)
 class InlineFunction(Function):
     pass
 
 
 @dataclass(slots=True,frozen=True)
-class SysFunction:
-    builder: Callable[[Block, list[int], list[tuple[str, str | int]]], None]
+class SysFunction(CallableFunction):
+    builder: Callable[[Block, list[int], list[TypedValue], int], Optional[tuple[VarType, TypedValue]]]
 
     @staticmethod
     def tunnel(op_code: OpCode) -> SysFunction:
-        def builder(block: Block, compiled: list[int], arguments: list[tuple[str, str | int]]):
+        def builder(block: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> Optional[VarType]:
             block.error(op_code.add(compiled, None, *arguments))
+            return None
 
         return SysFunction(builder)
 
-    def build(self, block: Block, compiled: list[int], data: list[int], arguments: list[Value]):
-        try:
-            resolved = (arg.get(block, compiled, data) for arg in arguments)
-            self.builder(block, compiled, list(resolved))
-        except NameError as e:
-            return e.args[0]
-        except NotImplementedError as e:
-            return e.args[0]
-        return None
+    def call(self, block: Block, compiled: list[int], data: list[int], arguments: list[ValueGetter], destination: int) -> Optional[tuple[VarType, TypedValue]]:
+        with ExitStack() as stack:
+            resolved: list[TypedValue] = []
+            for i, arg in enumerate(arguments):
+                if (constant := arg.get_constant(block, data)) is not None:
+                    var_type, value = constant
+                    if isinstance(var_type, PointerVarType):
+                        arg_register = stack.enter_context(block.acquire_register())
+                        OpCode.MOV.add(compiled, None, ('register', arg_register), ('number', value))
+                        resolved.append(('register', arg_register))
+                    else:
+                        resolved.append(('number', value))
+                else:
+                    arg_register = stack.enter_context(block.acquire_register())
+                    arg.get_either(block, compiled, data, arg_register)
+                    resolved.append(('register', arg_register))
+            print(resolved)
+            return self.builder(block, compiled, resolved, destination)
 
 
 class DLangTransformer(Transformer):
     def num(self, tokens):
-        return Value(I32, int(tokens[0].value, 0))
+        return ConstValue(I32, int(tokens[0].value, 0))
 
     def str(self, tokens):
         text = tokens[0].value[1:-1]
-        #.encode().decode('unicode_escape').encode('ascii')
-        return Value(STR, text)
+        value = [*text.encode().decode('unicode_escape').encode('ascii'), 0]
+        return DataValue(ListVarType(I32, len(value)), value)
+
+    def char(self, tokens):
+        text = tokens[0].value[1:-1].encode().decode('unicode_escape').encode('ascii')
+        if len(text):
+            return ConstValue(I32, ord(text))
+        return ConstValue(I32, 0)
 
     @v_args(meta=True)
-    def list_literal(self, meta: Meta, values: list[Value]):
-        if any(x.value_type != values[0].value_type for x in values):
-            print(values)
-            raise UnexpectedType(values[1].value_type.name, values[0].value_type.name, meta.line, meta.column)
-        return Value(ListVarType(values[0].value_type, len(values)), [value.value for value in values])
+    def list_literal(self, meta: Meta, values: list[ConstValue]):
+        if values[0] is None:
+            return DataValue(ListVarType(VOID, 0), [])
+        print(values)
+        if any(x.var_type != values[0].var_type for x in values):
+            raise UnexpectedType(values[1].var_type.name, values[0].var_type.name, meta.line, meta.column)
+        return DataValue(ListVarType(values[0].var_type, len(values)), [value.value for value in values])
 
     def list_lit(self, tokens):
         return tokens[0]
 
     def list_repeated(self, tokens):
         size = int(tokens[1].value)
-        return Value(ListVarType(tokens[0].value_type, size), [tokens[0].value] * size)
+        repeat_value = tokens[0]
+        return DataValue(ListVarType(repeat_value.var_type, size), [repeat_value.value] * size)
 
     def list_rep(self, tokens):
         return tokens[0]
@@ -476,10 +830,14 @@ class DLangTransformer(Transformer):
         return tok
 
     def var(self, tokens):
-        return Value(VarType('variable', 0), tokens[0].value)
+        return VariableValue(tokens[0].value, tokens[1])
 
     def basic_type(self, tokens):
-        return VarType(tokens[0].value, 1)
+        if tokens[0].value == 'i32':
+            return I32
+        elif tokens[0].value == 'void':
+            return VOID
+        return None
 
     def list_type(self, tokens):
         return ListVarType(tokens[0], int(tokens[1].value))
@@ -487,53 +845,85 @@ class DLangTransformer(Transformer):
     def block(self, tokens):
         return Block(tokens, {}, {})
 
-    @v_args(meta=True)
-    def func_def(self, meta: Meta, tokens):
-        return meta.line - 1, Function(tokens[0].value, tokens[1], tokens[2])
+    def FACT_OP(self, tokens):
+        return MathOperator(tokens[0])
 
-    @v_args(meta=True)
-    def var_declaration(self, meta: Meta, tokens):
+    def factor(self, tokens):
+        return MathOperation(tokens[0], tokens[1], tokens[2])
+
+    def func_def(self, tokens):
+        return Function(tokens[0].value, [] if tokens[1] is None else tokens[1], VOID if tokens[2] is None else tokens[2], tokens[3])
+
+    def TERM_OP(self, tok):
+        return MathOperator(tok)
+
+    def term(self, tokens):
+        return MathOperation(tokens[0], tokens[1], tokens[2])
+
+    def var_declaration(self, tokens):
         var_type = tokens[2]
-        if tokens[1] is not None:
-            var_type = ReferenceVarType(var_type)
-        return meta.line - 1, VarDeclaration(tokens[0].value, var_type, tokens[3], False)
+        pointer_depth = tokens[1] or 0
+        for i in range(pointer_depth):
+            var_type = PointerVarType(var_type)
 
-    @v_args(meta=True)
-    def const_declaration(self, meta: Meta, tokens):
+        return VarDeclaration(tokens[0].value, var_type, tokens[3])
+
+    def static_declaration(self, tokens):
         var_type = tokens[2]
-        if tokens[1] is not None:
-            var_type = ReferenceVarType(var_type)
-        return meta.line - 1, VarDeclaration(tokens[0].value, var_type, tokens[3], True)
+        pointer_depth = tokens[1] or 0
+        for i in range(pointer_depth):
+            var_type = PointerVarType(var_type)
+
+        return VarDeclaration(tokens[0].value, var_type, tokens[3], static=True)
+
+    def const_declaration(self, tokens):
+        var_type = tokens[2]
+        pointer_depth = tokens[1] or 0
+        for i in range(pointer_depth):
+            var_type = PointerVarType(var_type)
+
+        return VarDeclaration(tokens[0].value, var_type, tokens[3], const=True)
+
+    def pointer_list(self, tokens):
+        return len(tokens)
 
     @v_args(meta=True)
-    def assign(self, meta: Meta, tokens):
-        return meta.line - 1, VarAssignment(tokens[0].value, tokens[1], MathOperator(tokens[2].value), tokens[3])
+    def stmt(self, meta: Meta, tokens):
+        return meta.line - 1, tokens[0]
+
+    def assign(self, tokens):
+        return VarAssignment(tokens[0].value, tokens[1], MathOperator(tokens[2].value), tokens[3])
 
     def comparison(self, tokens):
         return Comparison(tokens[0], CompOperator(tokens[1].value), tokens[2])
 
-    @v_args(meta=True)
-    def if_stmt(self, meta: Meta, tokens):
-        return meta.line - 1, IfStatement(tokens[0], tokens[1])
+    def if_stmt(self, tokens):
+        return tokens[0]
 
-    @v_args(meta=True)
-    def loop_stmt(self, meta: Meta, tokens):
-        return meta.line - 1, LoopBlock(tokens[0])
+    def matched_if(self, tokens):
+        return IfStatement(tokens[0], tokens[1], tokens[2])
 
-    @v_args(meta=True)
-    def break_stmt(self, meta: Meta, _):
-        return meta.line - 1, BreakStatement()
+    def unmatched_if(self, tokens):
+        return IfStatement(tokens[0], tokens[1], None)
 
-    @v_args(meta=True)
-    def continue_stmt(self, meta: Meta, _):
-        return meta.line - 1, ContinueStatement()
+    def loop_stmt(self, tokens):
+        return LoopBlock(tokens[0])
+
+    def return_stmt(self, _):
+        return ReturnStatement()
+
+    def break_stmt(self, _):
+        return BreakStatement()
+
+    def continue_stmt(self, _):
+        return ContinueStatement()
 
     def arglist(self, tokens) -> list:
         return tokens
 
-    @v_args(meta=True)
-    def call(self, meta: Meta, tokens):
-        return meta.line - 1, FunctionCall(tokens[0].value, tokens[1])
+    def call(self, tokens):
+        arguments = tokens[1]
+        return FunctionCall(tokens[0].value, [] if arguments is None else arguments)
 
     def start(self, tokens):
         return Block(tokens, {}, {}, root=True)
@@ -544,10 +934,38 @@ class DLangCompiler(Compiler):
         with open("dlang.lark", "r") as f:
             super().__init__(Lark(f.read(), parser="lalr", propagate_positions=True))
 
-        def get_port(block: Block, compiled: list[int], arguments: list[tuple[str, str | int]]):
-            OpCode.IN.add(compiled, None, *arguments)
+        def get_port(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> VarType:
+            OpCode.IN.add(compiled, None, ('register', destination), *arguments)
+            return I32
 
-        self.builtin_functions: dict[str, SysFunction] = {'set_port': SysFunction.tunnel(OpCode.OUT),'get_port': SysFunction(get_port)}
+        def malloc(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> VarType:
+            OpCode.OUT.add(compiled, None, ('number', 10), *arguments)
+            if destination and destination != 1:
+                OpCode.MOV.add(compiled, None, ('register', destination), RETURN_VALUE)
+            return I32
+
+        def sleep(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> None:
+            OpCode.OUT.add(compiled, None, ('number', 2), *arguments)
+
+        def print(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> None:
+            OpCode.OUT.add(compiled, None, ('number', 9), *arguments)
+
+        def print_number(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> None:
+            OpCode.OUT.add(compiled, None, ('number', 1), *arguments)
+
+        self.builtin_functions: dict[str, SysFunction] = {
+            'set_port': SysFunction.tunnel(OpCode.OUT),
+            'get_port': SysFunction(get_port),
+            'malloc': SysFunction(malloc),
+            'sleep': SysFunction(sleep),
+            'print': SysFunction(print),
+            'print_number': SysFunction(print_number)
+        }
+
+    @classmethod
+    def emit_instruction(cls, compiled: list[int], instruction: str, operands: list):
+        match instruction:
+            case "ret void": compiled.append(OpCode.RET.id)
 
     def compile(self, text: str) -> bytes | list[Error]:
         errors: dict[int, Error] = {}
@@ -568,12 +986,12 @@ class DLangCompiler(Compiler):
         compiled: list[int] = []
         link_table: list[tuple[int, int, LinkType, LinkType]] = []
         data: list[int] = []
-        future: list[Callable[[], None]] = []
+        future: list[Callable[[], int]] = []
 
         def add_link(index: int, target_index: int, index_link_type: LinkType = LinkType.RAW, target_link_type: LinkType = LinkType.RAW):
             link_table.append((index, target_index, index_link_type, target_link_type))
 
-        def add_future(value: Callable[[], None]) -> int:
+        def add_future(value: Callable[[], int]) -> int:
             index = len(future)
             future.append(value)
             return index
@@ -583,18 +1001,38 @@ class DLangCompiler(Compiler):
                 return
             errors[line] = Error(line, error, 'error', column)
 
+        registers = []
+        exclusive_registers = {}
+        for i in range(99, 0, -1):
+            if i not in exclusive_registers:
+                registers.append(i)
+
+        main_function_index = 0
+        OpCode.CAL.add(compiled, None, ('number', 0))
+        add_link(len(compiled) - 1, add_future(lambda: main_function_index), LinkType.RAW, LinkType.FUTURE)
+        compiled.append(OpCode.HLT.id)
+
+        program.registers = registers
         program.functions = dict(self.builtin_functions)
         program.linker = add_link
         program.error_line = add_error
         program.future = add_future
+        program.g_compiled = compiled
+        program.g_data = data
         program.build(None, compiled, data)
 
         if errors:
             return list(errors.values())
 
-        compiled.append(OpCode.HLT.id)
         data_start = len(compiled)
         compiled.extend(data)
+
+        main_function = program.functions.get('main')
+        if main_function is None or not isinstance(main_function, Function):
+            errors[0] = Error(0, "Function 'main' not found", "error")
+            return list(errors.values())
+        main_function_index = main_function.code_index
+
         for index, target_index, index_link_type, target_link_type in link_table:
             if target_link_type == LinkType.DATA:
                 target_index += data_start
@@ -606,6 +1044,7 @@ class DLangCompiler(Compiler):
                 index = future[index]()
             compiled[index] = target_index
         print(compiled)
+        print(len(compiled))
 
         try:
             program_bytes: bytes = array.array('I', compiled).tobytes()
