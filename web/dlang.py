@@ -186,9 +186,9 @@ class ConstVariable(Variable):
             return self.var_type.base
         else:
             if self.var_type == I32:
-                OpCode.MOV.add(compiled, None, ('register', destination), ('number', self.value))
+                OpCode.IMM.add(compiled, None, ('register', destination), ('number', self.value))
             elif isinstance(self.var_type, PointerVarType):
-                OpCode.MOV.add(compiled, None, ('register', destination), ('number', 0))
+                OpCode.IMM.add(compiled, None, ('register', destination), ('number', 0))
                 block.linker(len(compiled) - 1, self.value, LinkType.RAW, LinkType.DATA)
         return self.var_type
 
@@ -385,6 +385,7 @@ class VarAssignment(Buildable):
     index: Optional[ValueGetter]
     operator: MathOperator
     value: ValueGetter
+    value_index: Optional[ValueGetter]
 
     def build(self, block: Block, compiled: list[int], data: list[int]):
         variable = block.variables.get(self.name)
@@ -461,11 +462,11 @@ class MathOperator(Enum):
 
     def apply(self, compiled: list[int], destination: int, a: TypedValue, b: TypedValue):
         if self.self_operation:
-            a = 'register', destination
+            self.opcode.add(compiled, None, ('register', destination), b)
         elif a[0] == 'number' and b[0] == 'number':
-            OpCode.MOV.add(compiled, None, ('register', destination), ('number', self.py_operator(a[1], b[1])))
-            return
-        self.opcode.add(compiled, None, ('register', destination), a, b)
+            OpCode.IMM.add(compiled, None, ('register', destination), ('number', self.py_operator(a[1], b[1])))
+        else:
+            self.opcode.add(compiled, None, ('register', destination), a, b)
 
 
 @dataclass(slots=True,frozen=True)
@@ -779,7 +780,7 @@ class SysFunction(CallableFunction):
                     var_type, value = constant
                     if isinstance(var_type, PointerVarType):
                         arg_register = stack.enter_context(block.acquire_register())
-                        OpCode.MOV.add(compiled, None, ('register', arg_register), ('number', value))
+                        OpCode.IMM.add(compiled, None, ('register', arg_register), ('number', value))
                         resolved.append(('register', arg_register))
                     else:
                         resolved.append(('number', value))
@@ -892,7 +893,7 @@ class DLangTransformer(Transformer):
         return meta.line - 1, tokens[0]
 
     def assign(self, tokens):
-        return VarAssignment(tokens[0].value, tokens[1], MathOperator(tokens[2].value), tokens[3])
+        return VarAssignment(tokens[0].value, tokens[1], MathOperator(tokens[2].value), tokens[3], tokens[4])
 
     def comparison(self, tokens):
         return Comparison(tokens[0], CompOperator(tokens[1].value), tokens[2])

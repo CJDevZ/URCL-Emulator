@@ -38,11 +38,13 @@ def hello_world_dlang():
 class GetRequest:
     uuid: list[int]
     auth: int
+    offset: int
 
-@dataclass(slots=True,frozen=True)
+@dataclass(slots=True)
 class GetResponse:
     uuid: UUID
     compiled: list[int]
+    done: int
 
 
 @app.post('/emulator/urcl/get')
@@ -51,24 +53,57 @@ def emulator_get_urcl():
     if not isinstance(requests, list):
         return 'Expected Auth Integers', 400
 
-    response: list[GetResponse] = []
+    responses: list[GetResponse] = []
+    budget = 10_000 - 2
 
     try:
-        for get_request in requests:
+        for i, get_request in enumerate(requests):
+            if i != 0:
+                budget -= 1
+                if budget < 0:
+                    break
             get_request: dict[str, Any]
             get_request: GetRequest = from_dict(data_class=GetRequest, data=get_request)
             auth: int = get_request.auth
             auth_bytes = auth.to_bytes(4, signed=True)
             binary = database.get(auth_bytes)
             if not binary:
+                response = GetResponse(UUID(int=((get_request.uuid[0] & 0xFFFFFFFF) << 96) | ((get_request.uuid[1] & 0xFFFFFFFF) << 64) | ((get_request.uuid[2] & 0xFFFFFFFF) << 32) | (get_request.uuid[3] & 0xFFFFFFFF)), [70,9,4,36,0x55,0x6E,0x6B,0x6E,0x6F,0x77,0x6E,0], 1)
+                response_str = app.json.dumps(response, separators=(',', ':'))
+                if len(response_str) > budget:
+                    break
+                budget -= len(response_str)
+                responses.append(response)
                 continue
+            database.expire(auth_bytes, 10, gt=True)
             int_array = array.array('i')
             int_array.frombytes(binary)
-            response.append(GetResponse(UUID(int=((get_request.uuid[0] & 0xFFFFFFFF) << 96) | ((get_request.uuid[1] & 0xFFFFFFFF) << 64) | ((get_request.uuid[2] & 0xFFFFFFFF) << 32) | (get_request.uuid[3] & 0xFFFFFFFF)), int_array.tolist()))
+            int_array = int_array[get_request.offset:]
+            response = GetResponse(UUID(int=((get_request.uuid[0] & 0xFFFFFFFF) << 96) | ((get_request.uuid[1] & 0xFFFFFFFF) << 64) | ((get_request.uuid[2] & 0xFFFFFFFF) << 32) | (get_request.uuid[3] & 0xFFFFFFFF)), [], 1)
+            response_str = app.json.dumps(response, separators=(',', ':'))
+            budget -= len(response_str)
+            #int_array.tolist()
+            cutoff = 0
+            done = 1
+            for j, integer in enumerate(int_array):
+                if j != 0:
+                    budget -= 1
+                    if budget < 0:
+                        done = 0
+                        break
+                length = len(str(integer))
+                if length > budget:
+                    done = 0
+                    break
+                budget -= length
+                cutoff = j + 1
+            response.compiled = int_array[:cutoff].tolist()
+            response.done = done
+            responses.append(response)
     except Exception as e:
         return str(e), 400
 
-    return response, 200
+    return responses, 200
 
 
 urcl_compiler = URCLCompiler()
@@ -91,6 +126,10 @@ def compile_urcl():
     if not isinstance(body, str):
         return send_file('http/urcl.html', mimetype='text/html'), 400
     return compile_code(urcl_compiler, body)
+
+@app.post('/test')
+def test():
+    return "[0,FF]"
 
 @app.post('/emulator/dlang/compile')
 @limiter.limit("5 per minute")

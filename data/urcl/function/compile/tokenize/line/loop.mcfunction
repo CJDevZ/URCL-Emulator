@@ -29,9 +29,11 @@ execute store result score #op urcl.temp if data storage strlib:out array[]
 execute store success score ?success_op urcl.temp store result score #requiredop urcl.temp run function urcl:compile/tokenize/line/check_op with storage urcl:temp
 execute store result score $op_code urcl.temp run data get storage urcl:temp compiled[-1][0]
 scoreboard players set $arg_mask urcl.temp 0
+scoreboard players set $arg_bit urcl.temp 1073741824
 # Add Args
+data remove storage urcl:temp err
 function urcl:compile/tokenize/line/add_arg
-scoreboard players operation $arg_mask urcl.temp *= 256 __int__
+scoreboard players operation $arg_mask urcl.temp += $arg_mask urcl.temp
 execute store result storage urcl:temp compiled[-1][0] int 1 run scoreboard players operation $arg_mask urcl.temp += $op_code urcl.temp
 
 # Check Errors

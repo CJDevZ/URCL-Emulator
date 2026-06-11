@@ -52,7 +52,7 @@ var_decl: "var" CNAME [ ":" pointer_list type_expr ] [ "=" expr ]    -> var_decl
 
 ?expr: assignment
 
-?assignment: CNAME [ "[" expr "]" ] ASSIGN_OP expr     -> assign
+?assignment: CNAME [ "[" expr "]" ] ASSIGN_OP expr [ "[" expr "]" ]     -> assign
            | logical_or
 
 ?logical_or:    logical_and ("||" logical_and)*

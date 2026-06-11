@@ -59,7 +59,11 @@ class Instruction:
 
     @property
     def length(self) -> int:
-        return len(self.arguments) + 1
+        try:
+            operator: OpCode = OpCode[self.name]
+            return len(operator.arguments) + 1
+        except KeyError:
+            return 0
 
     def build(self, compiled: list[int], error: Callable[[str], None], defines: dict[str, ParameterToken]):
         try:
@@ -109,7 +113,7 @@ class URCLTransformer(Transformer):
         return Define(*items)
 
     def define_word(self, items):
-        return DefineWords([items[0]])
+        return DefineWords(items)
 
     def define_word_list(self, items):
         return DefineWords(items)

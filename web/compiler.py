@@ -26,7 +26,7 @@ class ParameterToken:
                 raise ValueError(f"Op requires '{arg_type}', found '{self.value_type}'")
         elif not self.value_type in arg_type:
             raise ValueError(f"Op requires '{'\' or \''.join(arg_type)}', found '{self.value_type}'")
-        elif abs(self.value) > 0xffffffff:
+        elif self.value.bit_length() > 32:
             raise ValueError(f"Immediate Value '{self.value}' is too Large")
         return self.value_type, self.value & 0xffffffff
 
@@ -109,12 +109,16 @@ class OpCode(Enum):
         self.arguments = arguments
 
     def add(self, compiled: list[int], define_getter: Optional[Callable[[str], ParameterToken]], *params: TypedValue) -> Optional[str]:
-        if len(params) != len(self.arguments):
+        params = list(params)
+        if self in MATH_OPERATORS and len(params) + 1 == len(self.arguments):
+            params.insert(1, params[0])
+        elif len(params) != len(self.arguments):
             return "Invalid parameter count"
         args_iter = iter(self.arguments)
         arg_mask = 0
         operator_index = len(compiled)
         compiled.append(0)
+        arg_bit = 0x80000000
         for arg in params:
             arg_type, value = arg
             try:
@@ -126,17 +130,40 @@ class OpCode(Enum):
                 accepted_types = next(args_iter)
                 arg_type, value = ParameterToken(arg_type, value).get_binary(accepted_types)
                 if isinstance(accepted_types, list):
-                    arg_mask <<= 1
                     if arg_type == 'register':
-                        arg_mask |= 1
+                        arg_mask |= arg_bit
+                    arg_bit >>= 1
                 compiled.append(value)
             except ValueError as e:
                 return str(e)
             except StopIteration:
                 return f"Invalid parameter count"
 
-        compiled[operator_index] = self.id | (arg_mask << 8)
+        compiled[operator_index] = self.id | arg_mask
         return None
+
+MATH_OPERATORS = [
+    OpCode.ADD,
+    OpCode.RSH,
+    OpCode.NOR,
+    OpCode.SUB,
+    OpCode.LSH,
+    OpCode.INC,
+    OpCode.DEC,
+    OpCode.NEG,
+    OpCode.AND,
+    OpCode.OR,
+    OpCode.NOT,
+    OpCode.XNOR,
+    OpCode.XOR,
+    OpCode.NAND,
+    OpCode.MLT,
+    OpCode.UMLT,
+    OpCode.SUMLT,
+    OpCode.DIV,
+    OpCode.SDIV,
+    OpCode.SRS
+]
 
 class Compiler:
     def __init__(self, parser: Lark):

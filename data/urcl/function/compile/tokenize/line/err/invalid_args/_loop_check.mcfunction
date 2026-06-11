@@ -1,1 +1,0 @@
-$return run execute if data storage urcl:temp {args_allowed:[$(arg_type)]}
