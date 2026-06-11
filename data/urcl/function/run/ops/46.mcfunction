@@ -1,5 +1,4 @@
 # BSR
-scoreboard players operation $op_code urcl.runtime *= 4194304 __int__
 execute store result storage urcl:temp pc0 int 1 run scoreboard players add @s urcl.runtime.curLine 1
 execute store result storage urcl:temp pc1 int 1 run scoreboard players add @s urcl.runtime.curLine 1
 execute store result storage urcl:temp pc2 int 1 run scoreboard players add @s urcl.runtime.curLine 1

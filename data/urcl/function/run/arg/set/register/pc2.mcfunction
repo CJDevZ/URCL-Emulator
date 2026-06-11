@@ -1,1 +1,0 @@
-$scoreboard players operation @s urcl.runtime.register.$(pc2) = out= urcl.runtime
