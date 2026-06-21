@@ -664,7 +664,7 @@ class Block(Buildable):
     end_index: int = -1
     loop_start_index: int = -1
     loop_end_future: int = -1
-    registers: list[int] = None
+    registers: int = 0
     g_compiled: list[int] = None
     g_data: list[int] = None
 
@@ -712,12 +712,12 @@ class Block(Buildable):
 
     @contextmanager
     def acquire_register(self):
-        register = self.registers.pop()
         try:
-            yield register
+            self.registers += 1
+            yield self.registers
         finally:
-            print(f"Put register {register} back")
-            self.registers.append(register)
+            print(f"Put register {self.registers} back")
+            self.registers -= 1
 
 
 class CallableFunction(ABC):
@@ -1002,18 +1002,11 @@ class DLangCompiler(Compiler):
                 return
             errors[line] = Error(line, error, 'error', column)
 
-        registers = []
-        exclusive_registers = {}
-        for i in range(99, 0, -1):
-            if i not in exclusive_registers:
-                registers.append(i)
-
         main_function_index = 0
         OpCode.CAL.add(compiled, None, ('number', 0))
         add_link(len(compiled) - 1, add_future(lambda: main_function_index), LinkType.RAW, LinkType.FUTURE)
         compiled.append(OpCode.HLT.id)
 
-        program.registers = registers
         program.functions = dict(self.builtin_functions)
         program.linker = add_link
         program.error_line = add_error
