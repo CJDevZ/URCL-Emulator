@@ -131,39 +131,6 @@ scoreboard players set 64 __int__ 64
 scoreboard players set 256 __int__ 256
 scoreboard players set 65536 __int__ 65536
 
-scoreboard objectives add urcl.powertwo dummy
-scoreboard players set 0 urcl.powertwo 1
-scoreboard players set 1 urcl.powertwo 2
-scoreboard players set 2 urcl.powertwo 4
-scoreboard players set 3 urcl.powertwo 8
-scoreboard players set 5 urcl.powertwo 16
-scoreboard players set 6 urcl.powertwo 32
-scoreboard players set 7 urcl.powertwo 64
-scoreboard players set 8 urcl.powertwo 128
-scoreboard players set 9 urcl.powertwo 256
-scoreboard players set 10 urcl.powertwo 512
-scoreboard players set 11 urcl.powertwo 1024
-scoreboard players set 12 urcl.powertwo 2048
-scoreboard players set 13 urcl.powertwo 4096
-scoreboard players set 14 urcl.powertwo 8192
-scoreboard players set 15 urcl.powertwo 16384
-scoreboard players set 16 urcl.powertwo 32768
-scoreboard players set 17 urcl.powertwo 65536
-scoreboard players set 18 urcl.powertwo 131072
-scoreboard players set 19 urcl.powertwo 262144
-scoreboard players set 20 urcl.powertwo 524288
-scoreboard players set 21 urcl.powertwo 1048576
-scoreboard players set 22 urcl.powertwo 2097152
-scoreboard players set 23 urcl.powertwo 4194304
-scoreboard players set 24 urcl.powertwo 8388608
-scoreboard players set 25 urcl.powertwo 16777216
-scoreboard players set 26 urcl.powertwo 33554432
-scoreboard players set 27 urcl.powertwo 67108864
-scoreboard players set 28 urcl.powertwo 134217728
-scoreboard players set 29 urcl.powertwo 268435456
-scoreboard players set 30 urcl.powertwo 536870912
-scoreboard players set 31 urcl.powertwo 1074741824
-
 # Stop All
 scoreboard players reset * urcl.runtime.alive
 

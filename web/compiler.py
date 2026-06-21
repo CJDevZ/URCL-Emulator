@@ -162,7 +162,12 @@ MATH_OPERATORS = [
     OpCode.SUMLT,
     OpCode.DIV,
     OpCode.SDIV,
-    OpCode.SRS
+    OpCode.MOD,
+    OpCode.BSR,
+    OpCode.BSL,
+    OpCode.SRS,
+    OpCode.BSS,
+    OpCode.ABS
 ]
 
 class Compiler:
