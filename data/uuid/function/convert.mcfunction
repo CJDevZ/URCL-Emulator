@@ -1,5 +1,3 @@
-data modify storage uuid:in UUID set from entity @s UUID
-
 # 4th Part
 execute store result score @s uuid store result storage uuid:temp 7 short 1 run data get storage uuid:in UUID[3]
 execute store result storage uuid:temp 6 short 1 run scoreboard players operation @s uuid /= 65536 uuid

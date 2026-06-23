@@ -128,6 +128,7 @@ scoreboard players set 5 __int__ 5
 scoreboard players set 12 __int__ 12
 scoreboard players set 15 __int__ 15
 scoreboard players set 64 __int__ 64
+scoreboard players set 128 __int__ 128
 scoreboard players set 256 __int__ 256
 scoreboard players set 65536 __int__ 65536
 
