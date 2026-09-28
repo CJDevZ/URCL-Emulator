@@ -159,7 +159,7 @@ def preprocess(source):
         if match:
             name, value = match.groups()
             defines[name] = value
-            continue
+            line = "\n"
 
         output.append(line)
 
@@ -203,7 +203,6 @@ class URCLCompiler(Compiler):
             elif isinstance(buildable, Define):
                 buildable.build(add_error, defines)
             elif isinstance(buildable, (DefineWords, Instruction)):
-                print(instruction, buildable)
                 instruction += buildable.length
 
         compiled: list[int] = []
