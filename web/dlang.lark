@@ -52,16 +52,20 @@ var_decl: "var" CNAME [ ":" pointer_list type_expr ] [ "=" expr ]    -> var_decl
 
 ?expr: assignment
 
-?assignment: CNAME [ "[" expr "]" ] ASSIGN_OP expr [ "[" expr "]" ]     -> assign
+?assignment: CNAME [ "[" expr "]" ] ASSIGN_OP expr     -> assign
            | logical_or
 
 ?logical_or:    logical_and ("||" logical_and)*
 ?logical_and:   comparison ("&&" comparison)*
 ?comparison:    term (COMP_OP term)*
 ?term:          factor (TERM_OP factor)*
-?factor:        atom (FACT_OP atom)*
+?factor:        primary (FACT_OP primary)*
 
-?atom       : "true"                 -> true
+?atom: "-" primary                   -> negate
+     | "!" primary                   -> not
+     | primary
+
+?primary    : "true"                 -> true
             | "false"                -> false
 
             | INT                    -> num
@@ -75,7 +79,6 @@ var_decl: "var" CNAME [ ":" pointer_list type_expr ] [ "=" expr ]    -> var_decl
             | call
             | function
 
-            | unop atom
             | "(" logical_or ")"
 
 list_literal: "[" [ expr ("," expr)* ] "]"
@@ -91,7 +94,6 @@ ASSIGN_OP: "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" |
 COMP_OP   : "<=" | ">=" | "<" | ">" | "==" | "!="
 TERM_OP   : "+" | "-" | ".."
 FACT_OP   : "*" | "/" | "%" | "!" | "<<" | ">>"
-unop      : "-" | "!"
 
 %import common.CNAME
 %import common.ESCAPED_STRING -> STRING

@@ -67,11 +67,11 @@ I32 = VarType('i32', 1, True)
 
 
 class ValueGetter(ABC):
-    def get(self, block: Block, compiled: list[int], data: list[int], destination: int) -> VarType:
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> VarType:
         return I32
 
-    def get_either(self, block: Block, compiled: list[int], data: list[int], destination: int) -> tuple[VarType, TypedValue]:
-        if (constant := self.get_constant(block, data)) is not None:
+    def get_either(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> tuple[VarType, TypedValue]:
+        if (constant := self.get_constant(block, data, index)) is not None:
             return constant[0], ('number', constant[1])
         return self.get(block, compiled, data, destination), ('register', destination)
 
@@ -84,7 +84,7 @@ class ConstValue(ValueGetter):
     var_type: VarType
     value: int
 
-    def get_constant(self, block: Block, data: list[int], index: Optional[int] = None) -> tuple[VarType, int]:
+    def get_constant(self, block: Block, data: list[int], index: Optional[ValueGetter] = None) -> tuple[VarType, int]:
         return self.var_type, self.value
 
 
@@ -93,7 +93,7 @@ class DataValue(ValueGetter):
     var_type: VarType
     value: Any
     
-    def get_constant(self, block: Block, data: list[int], index: Optional[int] = None) -> Optional[tuple[VarType, int]]:
+    def get_constant(self, block: Block, data: list[int], index: Optional[ValueGetter] = None) -> Optional[tuple[VarType, int]]:
         current_index = len(data)
         if isinstance(self.value, list):
             data.extend(self.value)
@@ -105,20 +105,29 @@ class DataValue(ValueGetter):
 @dataclass(slots=True,frozen=True)
 class VariableValue(ValueGetter):
     name: str
-    index: Optional[ValueGetter] = None
 
-    def get_constant(self, block: Block, data: list[int], index: Optional[int] = None) -> Optional[tuple[VarType, int]]:
+    def get_constant(self, block: Block, data: list[int], index: Optional[ValueGetter] = None) -> Optional[tuple[VarType, int]]:
         if (variable := block.variables.get(self.name)) is None:
             return None
-        if self.index is None:
-            return variable.get_constant(block, data, None)
-        return variable.get_constant(block, data, self.index)
+        return variable.get_constant(block, data, index)
 
-    def get(self, block: Block, compiled: list[int], data: list[int], destination: int) -> VarType:
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> VarType:
         if (variable := block.variables.get(self.name)) is None:
             block.error(f"Unknown variable '{self.name}'")
             return VOID
-        return variable.get_value(block, compiled, data, self.index, destination)
+        return variable.get(block, compiled, data, destination, index)
+
+
+@dataclass(slots=True,frozen=True)
+class IndexValue(ValueGetter):
+    value: ValueGetter
+    index: ValueGetter
+
+    def get_constant(self, block: Block, data: list[int], index: Optional[ValueGetter] = None) -> Optional[tuple[VarType, int]]:
+        return self.value.get_constant(block, data, self.index)
+
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> VarType:
+        return self.value.get(block, compiled, data, destination, self.index)
 
 
 class Buildable:
@@ -130,10 +139,7 @@ class Buildable:
 class Variable(ValueGetter):
     var_type: VarType
 
-    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], destination: int) -> VarType:
-        pass
-
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
+    def set(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
         pass
 
 
@@ -142,7 +148,7 @@ class DirectRegister(Variable):
     var_type: VarType
     register: int
 
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
+    def set(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
         if index is not None:
             block.error("Variable is not indexable")
             return
@@ -171,16 +177,16 @@ class ConstVariable(Variable):
             return self.var_type, self.value
         return self.var_type.base, data[self.value + index_value]
 
-    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], destination: int) -> VarType:
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> VarType:
         if index is not None:
             if not isinstance(self.var_type, PointerVarType):
                 block.error("Variable is not indexable")
-                return self.var_type
+                return VOID
             with block.acquire_register() as index_register:
                 index_type, index_tuple = index.get_either(block, compiled, data, index_register)
             if index_type != I32:
                 block.error("Cannot index an array with a non-integer type")
-                return self.var_type
+                return VOID
             OpCode.LLOD.add(compiled, None, ('register', destination), ('number', 0), index_tuple)
             block.linker(len(compiled) - 2, self.value, LinkType.RAW, LinkType.DATA)
             return self.var_type.base
@@ -190,9 +196,10 @@ class ConstVariable(Variable):
             elif isinstance(self.var_type, PointerVarType):
                 OpCode.IMM.add(compiled, None, ('register', destination), ('number', 0))
                 block.linker(len(compiled) - 1, self.value, LinkType.RAW, LinkType.DATA)
+
         return self.var_type
 
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: ValueGetter) -> None:
+    def set(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: ValueGetter) -> None:
         block.error("Constant cannot be changed")
         return
 
@@ -201,7 +208,7 @@ class ConstVariable(Variable):
 class StaticVariable(Variable):
     data_index: int
 
-    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], destination: int) -> VarType:
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> VarType:
         if index is not None:
             if not isinstance(self.var_type, PointerVarType):
                 block.error("Variable is not indexable")
@@ -220,7 +227,7 @@ class StaticVariable(Variable):
             block.linker(len(compiled) - 1, self.data_index, LinkType.RAW, LinkType.DATA)
         return self.var_type
 
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
+    def set(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]) -> None:
         if value is None:
             block.error("Value is Null")
             return
@@ -237,7 +244,7 @@ class StaticVariable(Variable):
                     store_register = stack.enter_context(block.acquire_register())
                     index_register = stack.enter_context(block.acquire_register())
 
-                    store_type = self.get_value(block, compiled, data, index, store_register)
+                    store_type = self.get(block, compiled, data, store_register, index)
                     index_type, index_tuple = index.get_either(block, compiled, data, index_register)
 
                     if index_type != I32:
@@ -272,7 +279,7 @@ class StaticVariable(Variable):
                 return
             if operator != MathOperator.SET:
                 with block.acquire_register() as store_register:
-                    store_type = self.get_value(block, compiled, data, index, store_register)
+                    store_type = self.get(block, compiled, data, store_register, index)
                 operator.apply(compiled, store_register, ('register', store_register), gotten_value)
                 block.linker(len(compiled) + 1, self.data_index, LinkType.RAW, LinkType.DATA)
                 OpCode.STR.add(compiled, None, ('number', 0), ('register', store_register))
@@ -284,19 +291,39 @@ class StaticVariable(Variable):
 @dataclass(slots=True)
 class LocalVariable(Variable):
     offset: int
+    initializer: Optional[int]
+    __set_count: int = -1
 
-    def get_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], destination: int) -> VarType:
+    def get_constant(self, block: Block, data: list[int], index: Optional[ValueGetter] = None) -> Optional[tuple[VarType, int]]:
+        if not self.__set_count and self.initializer is not None:
+            return self.var_type, self.initializer
+        return None
+
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> VarType:
         if self.offset:
             OpCode.LLOD.add(compiled, None, ('register', destination), STACK_POINTER, ('number', self.offset))
         else:
             OpCode.LOD.add(compiled, None, ('register', destination), STACK_POINTER)
-        return self.var_type
+        if index is None:
+            return self.var_type
 
-    def set_value(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]):
+        if not isinstance(self.var_type, PointerVarType):
+            block.error("Variable is not indexable")
+            return VOID
+        with block.acquire_register() as index_register:
+            index_type, index_tuple = index.get_either(block, compiled, data, index_register)
+        if index_type != I32:
+            block.error("Cannot index an array with a non-integer type")
+            return VOID
+        OpCode.LLOD.add(compiled, None, ('register', destination), ('register', destination), index_tuple)
+        return self.var_type.base
+
+    def set(self, block: Block, compiled: list[int], data: list[int], index: Optional[ValueGetter], operator: MathOperator, value: Optional[tuple[VarType, TypedValue]]):
         value_type, gotten_value = value
         if self.var_type is not None and value_type != self.var_type:
             block.error(f"Expected '{self.var_type}', got '{value_type}'")
             return
+        self.__set_count += 1
         if operator == MathOperator.SET:
             if self.offset:
                 OpCode.LSTR.add(compiled, None, STACK_POINTER, ('number', self.offset), gotten_value)
@@ -304,7 +331,7 @@ class LocalVariable(Variable):
                 OpCode.STR.add(compiled, None, STACK_POINTER, gotten_value)
         else:
             with block.acquire_register() as store_register:
-                store_type = self.get_value(block, compiled, data, index, store_register)
+                store_type = self.get(block, compiled, data, store_register, index)
             operator.apply(compiled, store_register, ('register', store_register), gotten_value)
             if self.offset:
                 OpCode.LSTR.add(compiled, None, STACK_POINTER, ('number', self.offset), ('register', store_register))
@@ -373,10 +400,13 @@ class VarDeclaration(Buildable):
                     return
             else:
                 value_tuple: tuple[VarType, TypedValue] = self.var_type, ('number', 0)
-            variable = LocalVariable(self.var_type, block.local_variable_offset)
+            initial_value = None
+            if value_tuple[1][0] == 'number':
+                initial_value = value_tuple[1][1]
+            variable = LocalVariable(self.var_type, block.local_variable_offset, initial_value)
             block.variables[self.name] = variable
             block.local_variable_offset += self.var_type.size
-            variable.set_value(block, compiled, data, None, MathOperator.SET, value_tuple)
+            variable.set(block, compiled, data, None, MathOperator.SET, value_tuple)
 
 
 @dataclass(slots=True)
@@ -385,7 +415,6 @@ class VarAssignment(Buildable):
     index: Optional[ValueGetter]
     operator: MathOperator
     value: ValueGetter
-    value_index: Optional[ValueGetter]
 
     def build(self, block: Block, compiled: list[int], data: list[int]):
         variable = block.variables.get(self.name)
@@ -393,7 +422,7 @@ class VarAssignment(Buildable):
             block.error(f"Variable '{self.name}' is not defined")
             return
         with block.acquire_register() as value_register:
-            variable.set_value(block, compiled, data, self.index, self.operator, self.value.get_either(block, compiled, data, value_register))
+            variable.set(block, compiled, data, self.index, self.operator, self.value.get_either(block, compiled, data, value_register))
 
 
 @dataclass(slots=True,frozen=True)
@@ -408,7 +437,7 @@ class FunctionCall(Buildable, ValueGetter):
             return
         function.call(block, compiled, data, self.arguments, 0)
 
-    def get(self, block: Block, compiled: list[int], data: list[int], destination: int) -> Optional[VarType]:
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> Optional[VarType]:
         function = block.functions.get(self.name)
         if function is None:
             block.error(f"Function '{self.name}' is not defined")
@@ -462,7 +491,9 @@ class MathOperator(Enum):
 
     def apply(self, compiled: list[int], destination: int, a: TypedValue, b: TypedValue):
         if self.self_operation:
-            self.opcode.add(compiled, None, ('register', destination), b)
+            a = ('register', destination)
+        if a == ('number', 0) and self == MathOperator.SUB:
+            OpCode.NEG.add(compiled, None, ('register', destination), b)
         elif a[0] == 'number' and b[0] == 'number':
             OpCode.IMM.add(compiled, None, ('register', destination), ('number', self.py_operator(a[1], b[1])))
         else:
@@ -475,7 +506,7 @@ class MathOperation(ValueGetter):
     operator: MathOperator
     b: ValueGetter
 
-    def get_constant(self, block: Block, data: list[int], index: Optional[int] = None) -> Optional[tuple[VarType, int]]:
+    def get_constant(self, block: Block, data: list[int], index: Optional[ValueGetter] = None) -> Optional[tuple[VarType, int]]:
         if (constant_a := self.a.get_constant(block, data)) is not None and (constant_b := self.b.get_constant(block, data)):
             a_type, a_value = constant_a
             b_type, b_value = constant_b
@@ -485,7 +516,7 @@ class MathOperation(ValueGetter):
             return a_type, self.operator.py_operator(a_value, b_value)
         return None
 
-    def get(self, block: Block, compiled: list[int], data: list[int], destination: int) -> VarType:
+    def get(self, block: Block, compiled: list[int], data: list[int], destination: int, index: Optional[ValueGetter] = None) -> VarType:
         with block.acquire_register() as a_register, block.acquire_register() as b_register:
             a_tuple = self.a.get_either(block, compiled, data, a_register)
             b_tuple = self.b.get_either(block, compiled, data, b_register)
@@ -696,7 +727,7 @@ class Block(Buildable):
                     param.get(self, self.g_compiled, self.g_data, arg_register)
                     arguments.append(('register', arg_register))
             if destination is not None:
-                destination.set_value(self, self.g_compiled, self.g_data, None, MathOperator.SET,(destination.var_type, ('register', dest_register)))
+                destination.set(self, self.g_compiled, self.g_data, None, MathOperator.SET,(destination.var_type, ('register', dest_register)))
         opcode.add(self.g_compiled, None, *arguments)
 
 
@@ -729,7 +760,7 @@ class CallableFunction(ABC):
 @dataclass(slots=True)
 class Function(Buildable, CallableFunction):
     name: str
-    parameters: list[LocalVariable]
+    parameters: dict[str, LocalVariable]
     return_type: VarType
     body: Block
     code_index: int = -1
@@ -742,6 +773,14 @@ class Function(Buildable, CallableFunction):
         OpCode.SUB.add(compiled, None, STACK_POINTER, STACK_POINTER, ('number', 0))
         block.linker(len(compiled) - 1, block.future(lambda: local_variable_offset), LinkType.RAW, LinkType.FUTURE)
         self.body.copy_standard(block)
+
+        # local variables
+        for i, (name, parameter) in enumerate(self.parameters.items()):
+            self.body.variables[name] = parameter
+            self.body.local_variable_offset += parameter.var_type.size
+            parameter.set(self.body, compiled, data, None, MathOperator.SET, (parameter.var_type, ('register', i + 1)))
+            print("Param", parameter)
+
         self.body.build(block, compiled, data)
         local_variable_offset = self.body.local_variable_offset
         if local_variable_offset == 1:
@@ -752,6 +791,18 @@ class Function(Buildable, CallableFunction):
         compiled.append(OpCode.RET.id)
 
     def call(self, block: Block, compiled: list[int], data: list[int], arguments: list[ValueGetter], destination: int) -> Optional[VarType]:
+        parameters = self.parameters.values()
+        if len(parameters) != len(arguments):
+            block.error(f"Invalid number of parameters, expected {len(parameters)}, got {len(arguments)}")
+            return
+        for i, param in enumerate(parameters):
+            argument = arguments[i]
+            arg_type, arg_tuple = argument.get_either(block, compiled, data, i + 1)
+            if arg_type != param.var_type:
+                block.error(f"Invalid argument type, expected {param.var_type}, got {arg_type}")
+                return
+            if arg_tuple != ('register', i + 1):
+                (OpCode.IMM if arg_tuple[0] == 'number' else OpCode.MOV).add(compiled, None, ('register', i + 1), arg_tuple)
         OpCode.CAL.add(compiled, None, ('number', self.code_index))
 
 
@@ -831,7 +882,10 @@ class DLangTransformer(Transformer):
         return tok
 
     def var(self, tokens):
-        return VariableValue(tokens[0].value, tokens[1])
+        variable = VariableValue(tokens[0].value)
+        if tokens[1] is not None:
+            variable = IndexValue(variable, tokens[1])
+        return variable
 
     def basic_type(self, tokens):
         if tokens[0].value == 'i32':
@@ -852,8 +906,27 @@ class DLangTransformer(Transformer):
     def factor(self, tokens):
         return MathOperation(tokens[0], tokens[1], tokens[2])
 
+    def negate(self, tokens):
+        return MathOperation(ConstValue(0), MathOperator.SUB, tokens[0])
+
     def func_def(self, tokens):
-        return Function(tokens[0].value, [] if tokens[1] is None else tokens[1], VOID if tokens[2] is None else tokens[2], tokens[3])
+        if tokens[1] is None:
+            return Function(
+                tokens[0].value,
+                {},
+                VOID if tokens[2] is None else tokens[2], tokens[3]
+            )
+        local_variable_index = 0
+        params: dict[str, LocalVariable] = {}
+        for i, (name, var_type) in enumerate(tokens[1]):
+            params[name] = LocalVariable(var_type, local_variable_index, None)
+            local_variable_index += var_type.size
+
+        return Function(
+            tokens[0].value,
+            params,
+            VOID if tokens[2] is None else tokens[2], tokens[3]
+        )
 
     def TERM_OP(self, tok):
         return MathOperator(tok)
@@ -893,7 +966,7 @@ class DLangTransformer(Transformer):
         return meta.line - 1, tokens[0]
 
     def assign(self, tokens):
-        return VarAssignment(tokens[0].value, tokens[1], MathOperator(tokens[2].value), tokens[3], tokens[4])
+        return VarAssignment(tokens[0].value, tokens[1], MathOperator(tokens[2].value), tokens[3])
 
     def comparison(self, tokens):
         return Comparison(tokens[0], CompOperator(tokens[1].value), tokens[2])
@@ -920,6 +993,13 @@ class DLangTransformer(Transformer):
         return ContinueStatement()
 
     def arglist(self, tokens) -> list:
+        print(tokens)
+        return tokens
+
+    def param(self, tokens):
+        return tokens[0].value, tokens[1]
+
+    def parlist(self, tokens):
         return tokens
 
     def call(self, tokens):
@@ -948,19 +1028,24 @@ class DLangCompiler(Compiler):
         def sleep(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> None:
             OpCode.OUT.add(compiled, None, ('number', 2), *arguments)
 
-        def print(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> None:
+        def print_text(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> None:
             OpCode.OUT.add(compiled, None, ('number', 9), *arguments)
 
         def print_number(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> None:
             OpCode.OUT.add(compiled, None, ('number', 1), *arguments)
+
+        def set_pixel(_: Block, compiled: list[int], arguments: list[TypedValue], destination: int) -> None:
+            OpCode.OUT.add(compiled, None, ('number', 13), *arguments)
+            OpCode.OUT.add(compiled, None, ('number', 8), ('number', 0))
 
         self.builtin_functions: dict[str, SysFunction] = {
             'set_port': SysFunction.tunnel(OpCode.OUT),
             'get_port': SysFunction(get_port),
             'malloc': SysFunction(malloc),
             'sleep': SysFunction(sleep),
-            'print': SysFunction(print),
-            'print_number': SysFunction(print_number)
+            'print': SysFunction(print_text),
+            'print_number': SysFunction(print_number),
+            'set_pixel': SysFunction(set_pixel)
         }
 
     @classmethod
