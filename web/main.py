@@ -16,7 +16,7 @@ from compiler import Error, Compiler
 from dlang import DLangCompiler
 from urcl import URCLCompiler
 
-database = redis.Redis(host='localhost', port=6379, db=0)
+database = redis.Redis(host='redis', port=6379, db=0)
 
 
 app = Flask(__name__)
@@ -120,7 +120,7 @@ def compile_code(compiler: Compiler, body: bytes):
 
     if isinstance(program_bytes, bytes):
         auth_integer = random.randint(1, 2147483647)
-        database.setex(auth_integer.to_bytes(4, signed=True), 300, program_bytes)
+        database.set(auth_integer.to_bytes(4, signed=True), program_bytes, ex=300)
         return f"ok {auth_integer}", 200
     else:
         return program_bytes, 400
@@ -155,4 +155,4 @@ def compile_dlang():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host="0.0.0.0", port=5000)
