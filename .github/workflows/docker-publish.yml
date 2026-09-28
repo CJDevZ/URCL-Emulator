@@ -34,8 +34,10 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout mod branch
         uses: actions/checkout@v4
+        with:
+          ref: mod
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
