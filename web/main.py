@@ -1,4 +1,5 @@
 import array
+import os
 import random
 from dataclasses import dataclass
 from typing import Any
@@ -16,7 +17,7 @@ from compiler import Error, Compiler
 from dlang import DLangCompiler
 from urcl import URCLCompiler
 
-database = redis.Redis(host='redis', port=6379, db=0)
+database = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", "6379")))
 
 
 app = Flask(__name__)
