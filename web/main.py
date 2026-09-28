@@ -12,6 +12,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from compiler import Error, Compiler
+#from cpp import CPPCompiler
 from dlang import DLangCompiler
 from urcl import URCLCompiler
 
@@ -31,6 +32,10 @@ def hello_world_urcl():
 @app.get('/emulator/dlang')
 def hello_world_dlang():
     return send_file('http/dlang.html')
+
+@app.get('/emulator/cpp')
+def hello_world_cpp():
+    return send_file('http/cpp.html')
 
 
 @dataclass_json
@@ -108,6 +113,7 @@ def emulator_get_urcl():
 
 urcl_compiler = URCLCompiler()
 dlang_compiler = DLangCompiler()
+#cpp_compiler = CPPCompiler()
 
 def compile_code(compiler: Compiler, body: bytes):
     program_bytes: bytes | list[Error] = compiler.compile(body)
@@ -138,6 +144,14 @@ def compile_dlang():
     if not isinstance(body, str):
         return send_file('http/dlang.html', mimetype='text/html'), 400
     return compile_code(dlang_compiler, body)
+
+#@app.post('/emulator/cpp/compile')
+#@limiter.limit("5 per minute")
+#def compile_cpp():
+#    body: bytes = request.get_json()
+#    if not isinstance(body, str):
+#        return send_file('http/cpp.html', mimetype='text/html'), 400
+#    return compile_code(cpp_compiler, body)
 
 
 if __name__ == '__main__':

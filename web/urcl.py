@@ -1,4 +1,5 @@
 import array
+import re
 from typing import Callable
 
 from lark import Transformer, v_args, Lark, UnexpectedCharacters, UnexpectedToken
@@ -96,6 +97,12 @@ class URCLTransformer(Transformer):
     def param(self, items):
         return items[0]
 
+    def param_list(self, items):
+        return items[0]
+
+    def param_string(self, tok):
+        return list(map(int, tok[0][1:-1].encode().decode("unicode_escape").encode()))
+
     @v_args(meta=True)
     def line(self, meta: Meta, items):
         return meta.line - 1, items[0]
@@ -109,17 +116,54 @@ class URCLTransformer(Transformer):
     def label(self, items):
         return Label(items[0][1])
 
-    def define(self, items):
-        return Define(*items)
-
     def define_word(self, items):
-        return DefineWords(items)
+        words = []
+        for item in items:
+            if isinstance(item, list):
+                words.extend(('number', i) for i in item)
+            else:
+                words.append(item)
+        return DefineWords(words)
 
     def define_word_list(self, items):
-        return DefineWords(items)
+        words = []
+        for item in items:
+            if isinstance(item, list):
+                words.extend(('number', i) for i in item)
+            else:
+                words.append(item)
+        return DefineWords(words)
 
     def start(self, items):
         return items
+
+DEFINE_RE = re.compile(
+    r'^\s*@define\s+([A-Za-z_][A-Za-z0-9_]*)\s+(.*?)\s*$',
+    re.MULTILINE | re.IGNORECASE
+)
+
+def preprocess(source):
+    defines = {}
+    output = []
+
+    for line in source.splitlines(keepends=True):
+        match = DEFINE_RE.match(line)
+
+        for name, value in defines.items():
+            line = re.sub(
+                rf'(?<!\S){re.escape(name)}(?!\S)',
+                value,
+                line
+            )
+
+        if match:
+            name, value = match.groups()
+            defines[name] = value
+            continue
+
+        output.append(line)
+
+    return ''.join(output)
 
 class URCLCompiler(Compiler):
     def __init__(self):
@@ -127,6 +171,7 @@ class URCLCompiler(Compiler):
             super().__init__(Lark(f.read(), parser="lalr", propagate_positions=True))
 
     def compile(self, text: str) -> bytes | list[Error]:
+        text = preprocess(text)
         text += "\n"
         errors: dict[int, Error] = {}
         try:
@@ -158,6 +203,7 @@ class URCLCompiler(Compiler):
             elif isinstance(buildable, Define):
                 buildable.build(add_error, defines)
             elif isinstance(buildable, (DefineWords, Instruction)):
+                print(instruction, buildable)
                 instruction += buildable.length
 
         compiled: list[int] = []

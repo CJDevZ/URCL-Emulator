@@ -2,13 +2,11 @@ start: line*
 
 line: instruction NEWLINE
         | label NEWLINE
-        | define NEWLINE
         | define_word NEWLINE
         | define_word_list NEWLINE
         | NEWLINE
 
 label: dot_label
-define: "@define"i WORD param
 instruction: WORD param*
 
 param: NUMBER
@@ -16,13 +14,18 @@ param: NUMBER
     | CHAR
     | defined
 
+param_string: /"[^"\r\n]*"/
+
+param_list: param
+        | param_string
+
 dot_label: "." WORD
 CHAR: /'(\\.|[^\\'])'/
 WORD: /[a-zA-Z_][a-zA-Z0-9_]*/
 NUMBER: /-?(0x[0-9a-fA-F_]+|0b[01_]+|[0-9_]+)/
 defined: WORD
-define_word: "DW"i param
-define_word_list: "DW"i "[" param* "]"
+define_word: "DW"i param_list
+define_word_list: "DW"i "[" param_list* "]"
 
 %import common.NEWLINE
 

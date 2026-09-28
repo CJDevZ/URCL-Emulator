@@ -1,5 +1,5 @@
 const fileLoader = document.getElementById('fileLoader');
-let editor = ace.edit("editor");
+const editor = ace.edit("editor");
 
 editor.setOptions({
     enableBasicAutocompletion: true,
