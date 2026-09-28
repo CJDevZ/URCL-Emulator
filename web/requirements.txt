@@ -3,7 +3,4 @@ dacite
 dataclasses-json
 Flask
 Flask-Limiter
-llvmlite
-clang
-ir
 lark
