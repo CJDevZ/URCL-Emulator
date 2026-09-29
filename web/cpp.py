@@ -17,7 +17,7 @@ class CPPCompiler(Compiler):
     def __init__(self):
         super().__init__(None)
 
-    def compile(self, text: str) -> bytes | list[Error]:
+    def compile(self, text: str, **kwargs) -> bytes | list[Error]:
         subprocess.run(
             [
                 "clang++",

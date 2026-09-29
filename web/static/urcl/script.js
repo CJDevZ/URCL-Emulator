@@ -10,6 +10,7 @@ editor.setTheme("ace/theme/twilight")
 editor.session.on('change', saveToLocal);
 
 let consoleOutput = document.getElementById('console-output');
+const programCounter = document.getElementById('program-counter')
 
 document.addEventListener('DOMContentLoaded', () => {
     const savedCode = localStorage.getItem('code');
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function uploadCode() {
     const code = editor.getValue();
+    const program_counter = programCounter.value
 
     try {
         const response = await fetch(`urcl/compile`, {
@@ -27,7 +29,10 @@ async function uploadCode() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(code)
+            body: JSON.stringify({
+                code,
+                program_counter
+            })
         });
 
         if (!response.ok) {

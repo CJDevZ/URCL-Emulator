@@ -142,7 +142,7 @@ DEFINE_RE = re.compile(
     re.MULTILINE | re.IGNORECASE
 )
 
-def preprocess(source):
+def preprocess(source: str):
     defines = {}
     output = []
 
@@ -170,9 +170,9 @@ class URCLCompiler(Compiler):
         with open("urcl.lark", "r") as f:
             super().__init__(Lark(f.read(), parser="lalr", propagate_positions=True))
 
-    def compile(self, text: str) -> bytes | list[Error]:
-        text = preprocess(text)
+    def compile(self, text: str, pc_offset: int = 0, **kwargs) -> bytes | list[Error]:
         text += "\n"
+        text = preprocess(text)
         errors: dict[int, Error] = {}
         try:
             tree = self.parser.parse(text)
@@ -187,7 +187,7 @@ class URCLCompiler(Compiler):
             defines['R'+str(i)] = ParameterToken('register', i)
             defines['$'+str(i)] = ParameterToken('register', i)
         defines['SP'] = ParameterToken('register', 99)
-        instruction = 0
+        instruction = pc_offset
 
         def make_error_handler(line):
             return lambda error: errors.__setitem__(

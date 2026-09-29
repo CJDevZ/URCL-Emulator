@@ -1053,7 +1053,7 @@ class DLangCompiler(Compiler):
         match instruction:
             case "ret void": compiled.append(OpCode.RET.id)
 
-    def compile(self, text: str) -> bytes | list[Error]:
+    def compile(self, text: str, **kwargs) -> bytes | list[Error]:
         errors: dict[int, Error] = {}
         try:
             tree = self.parser.parse(text)

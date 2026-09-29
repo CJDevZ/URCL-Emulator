@@ -116,8 +116,8 @@ urcl_compiler = URCLCompiler()
 dlang_compiler = DLangCompiler()
 #cpp_compiler = CPPCompiler()
 
-def compile_code(compiler: Compiler, body: bytes):
-    program_bytes: bytes | list[Error] = compiler.compile(body)
+def compile_code(compiler: Compiler, body: str, **kwargs):
+    program_bytes: bytes | list[Error] = compiler.compile(body, **kwargs)
 
     if isinstance(program_bytes, bytes):
         auth_integer = random.randint(1, 2147483647)
@@ -129,10 +129,14 @@ def compile_code(compiler: Compiler, body: bytes):
 @app.post('/emulator/urcl/compile')
 @limiter.limit("5 per minute")
 def compile_urcl():
-    body: bytes = request.get_json()
-    if not isinstance(body, str):
+    body = request.get_json()
+
+    if not isinstance(body, dict):
         return send_file('http/urcl.html', mimetype='text/html'), 400
-    return compile_code(urcl_compiler, body)
+
+    code: str = body["code"]
+    program_counter: int = body["program_counter"] or 0
+    return compile_code(urcl_compiler, code, pc_offset=program_counter)
 
 @app.post('/test')
 def test():
@@ -141,7 +145,7 @@ def test():
 @app.post('/emulator/dlang/compile')
 @limiter.limit("5 per minute")
 def compile_dlang():
-    body: bytes = request.get_json()
+    body: str = request.get_json()
     if not isinstance(body, str):
         return send_file('http/dlang.html', mimetype='text/html'), 400
     return compile_code(dlang_compiler, body)
