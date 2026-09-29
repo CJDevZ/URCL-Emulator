@@ -147,8 +147,6 @@ def preprocess(source: str):
     output = []
 
     for line in source.splitlines(keepends=True):
-        match = DEFINE_RE.match(line)
-
         for name, value in defines.items():
             line = re.sub(
                 rf'(?<!\S){re.escape(name)}(?!\S)',
@@ -156,7 +154,7 @@ def preprocess(source: str):
                 line
             )
 
-        if match:
+        if match := DEFINE_RE.match(line):
             name, value = match.groups()
             defines[name] = value
             line = "\n"
