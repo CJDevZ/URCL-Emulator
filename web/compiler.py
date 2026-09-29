@@ -174,5 +174,5 @@ class Compiler:
     def __init__(self, parser: Lark):
         self.parser = parser
 
-    def compile(self, text: str) -> bytes | list[Error]:
+    def compile(self, text: str, **kwargs) -> bytes | list[Error]:
         return []
