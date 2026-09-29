@@ -135,7 +135,7 @@ def compile_urcl():
         return send_file('http/urcl.html', mimetype='text/html'), 400
 
     code: str = body["code"]
-    program_counter: int = body["program_counter"] or 0
+    program_counter: int = int(body["program_counter"] or "0")
     return compile_code(urcl_compiler, code, pc_offset=program_counter)
 
 @app.post('/test')
