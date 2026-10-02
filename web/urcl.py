@@ -180,10 +180,11 @@ class URCLCompiler(Compiler):
         program = URCLTransformer().transform(tree)
 
         defines: dict[str, ParameterToken] = {}
-        for i in range(99):
+        for i in range(98):
             defines['r'+str(i)] = ParameterToken('register', i)
             defines['R'+str(i)] = ParameterToken('register', i)
             defines['$'+str(i)] = ParameterToken('register', i)
+        defines['PC'] = ParameterToken('register', 98)
         defines['SP'] = ParameterToken('register', 99)
         instruction = pc_offset
 
